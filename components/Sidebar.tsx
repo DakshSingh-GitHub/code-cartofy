@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { GraphData, GraphNode, CopilotReport } from "@/lib/types";
 import { generateArchitecturalCopilotReport } from "@/lib/aiCopilot";
+import { getShortLabel } from "@/lib/graphParser";
 import {
   Info,
   AlertTriangle,
@@ -380,7 +381,7 @@ export function Sidebar({
                       {cycle.map((nodeId, stepIdx) => (
                         <div key={stepIdx} className="flex items-center gap-1.5">
                           <span className="text-zinc-600">{stepIdx + 1}.</span>
-                          <span className="truncate">{nodeId.split("/").pop()}</span>
+                          <span className="truncate">{getShortLabel(nodeId)}</span>
                           {stepIdx < cycle.length - 1 && (
                             <ArrowRight className="w-3 h-3 text-red-500 ml-auto shrink-0" />
                           )}

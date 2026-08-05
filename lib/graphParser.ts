@@ -8,12 +8,16 @@ export function parseRepositoryToGraph(files: FileInput[]): GraphData {
   const adjacencyList = new Map<string, Set<string>>();
   const linkSymbolsMap = new Map<string, Set<string>>();
 
-  // Normalize paths in file inputs
-  const normalizedFiles = files.map((f) => ({
-    ...f,
-    path: normalizeFilePath(f.path),
-  }));
+  // Normalize & deduplicate file paths
+  const uniqueFilesMap = new Map<string, FileInput>();
+  files.forEach((f) => {
+    const cleanPath = normalizeFilePath(f.path);
+    if (cleanPath && !uniqueFilesMap.has(cleanPath)) {
+      uniqueFilesMap.set(cleanPath, { ...f, path: cleanPath });
+    }
+  });
 
+  const normalizedFiles = Array.from(uniqueFilesMap.values());
   const allFilePaths = normalizedFiles.map((f) => f.path);
 
   // Step 1: Register files as nodes
@@ -161,10 +165,12 @@ export function parseRepositoryToGraph(files: FileInput[]): GraphData {
   }));
 
   const links = Array.from(linksMap.values()).map((link) => {
-    const srcId = typeof link.source === "string" ? link.source : link.source.id;
-    const tgtId = typeof link.target === "string" ? link.target : link.target.id;
+    const srcId = typeof link.source === "string" ? link.source : (link.source as any).id;
+    const tgtId = typeof link.target === "string" ? link.target : (link.target as any).id;
     return {
       ...link,
+      source: srcId,
+      target: tgtId,
       isCircular: circularLinkSet.has(`${srcId}--->${tgtId}`),
     };
   });
@@ -220,9 +226,43 @@ function normalizeFilePath(path: string): string {
   return clean;
 }
 
-function getShortLabel(filePath: string): string {
+export function getShortLabel(filePath: string): string {
   const parts = filePath.split("/");
-  return parts.pop() || filePath;
+  const fileName = parts.pop() || filePath;
+
+  // Generic file names where folder/route context is essential (e.g. page.tsx, layout.tsx, route.ts, index.ts)
+  const isGenericRouteFile =
+    /^page\.(tsx|jsx|ts|js)$/i.test(fileName) ||
+    /^layout\.(tsx|jsx|ts|js)$/i.test(fileName) ||
+    /^route\.(tsx|jsx|ts|js)$/i.test(fileName) ||
+    /^loading\.(tsx|jsx|ts|js)$/i.test(fileName) ||
+    /^error\.(tsx|jsx|ts|js)$/i.test(fileName) ||
+    /^not-found\.(tsx|jsx|ts|js)$/i.test(fileName) ||
+    /^template\.(tsx|jsx|ts|js)$/i.test(fileName) ||
+    /^default\.(tsx|jsx|ts|js)$/i.test(fileName) ||
+    /^head\.(tsx|jsx|ts|js)$/i.test(fileName) ||
+    /^index\.(tsx|jsx|ts|js)$/i.test(fileName);
+
+  if (isGenericRouteFile && parts.length > 0) {
+    // Extract route/folder path relative to root/app/pages
+    let routeParts = [...parts];
+    if (routeParts[0] === "src") routeParts.shift();
+    if (
+      routeParts[0] === "app" ||
+      routeParts[0] === "pages" ||
+      routeParts[0] === "routes"
+    ) {
+      routeParts.shift();
+    }
+
+    const routeName =
+      routeParts.length > 0
+        ? routeParts.join("/")
+        : parts[parts.length - 1] || "root";
+    return `${routeName} - ${fileName}`;
+  }
+
+  return fileName;
 }
 
 export function resolveImportPath(

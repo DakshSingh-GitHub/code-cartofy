@@ -9,11 +9,14 @@ import {
   Maximize2,
   Play,
   Pause,
+  RotateCw,
 } from "lucide-react";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
 });
+
+import { forceCollide } from "d3-force";
 
 interface GraphCanvasProps {
   graphData: GraphData;
@@ -22,6 +25,8 @@ interface GraphCanvasProps {
   searchQuery: string;
   showCyclesOnly: boolean;
   spotlightCycleNodes: string[] | null;
+  onReloadCurrentRepo?: () => void;
+  isParsing?: boolean;
 }
 
 export function GraphCanvas({
@@ -31,6 +36,8 @@ export function GraphCanvas({
   searchQuery,
   showCyclesOnly,
   spotlightCycleNodes,
+  onReloadCurrentRepo,
+  isParsing = false,
 }: GraphCanvasProps) {
   const fgRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -54,31 +61,67 @@ export function GraphCanvas({
   }, []);
 
   const filteredData = React.useMemo(() => {
-    let nodes = [...graphData.nodes];
+    // Deduplicate nodes by id
+    const uniqueNodesMap = new Map<string, GraphNode>();
+    graphData.nodes.forEach((n) => {
+      if (n.id && !uniqueNodesMap.has(n.id)) {
+        uniqueNodesMap.set(n.id, n);
+      }
+    });
+
+    let nodes = Array.from(uniqueNodesMap.values());
     let links = [...graphData.links];
 
     if (showCyclesOnly) {
       nodes = nodes.filter((n) => n.isCircular);
-      const circularNodeIds = new Set(nodes.map((n) => n.id));
-      links = links.filter((l) => {
-        const srcId = typeof l.source === "string" ? l.source : (l.source as any).id;
-        const tgtId = typeof l.target === "string" ? l.target : (l.target as any).id;
-        return circularNodeIds.has(srcId) && circularNodeIds.has(tgtId);
-      });
     }
 
     if (spotlightCycleNodes && spotlightCycleNodes.length > 0) {
       const spotlightSet = new Set(spotlightCycleNodes);
       nodes = nodes.filter((n) => spotlightSet.has(n.id));
-      links = links.filter((l) => {
-        const srcId = typeof l.source === "string" ? l.source : (l.source as any).id;
-        const tgtId = typeof l.target === "string" ? l.target : (l.target as any).id;
-        return spotlightSet.has(srcId) && spotlightSet.has(tgtId);
-      });
     }
 
-    return { nodes, links };
+    const validNodeIds = new Set(nodes.map((n) => n.id));
+
+    // Deep clean links to ensure source and target are ALWAYS string IDs, never mutated object references
+    const cleanLinks = links
+      .map((l) => {
+        const srcId = typeof l.source === "object" && l.source !== null ? (l.source as any).id : String(l.source);
+        const tgtId = typeof l.target === "object" && l.target !== null ? (l.target as any).id : String(l.target);
+        return {
+          ...l,
+          source: srcId,
+          target: tgtId,
+        };
+      })
+      .filter((l) => validNodeIds.has(l.source) && validNodeIds.has(l.target));
+
+    return { nodes, links: cleanLinks };
   }, [graphData, showCyclesOnly, spotlightCycleNodes]);
+
+  // Configure D3 forces dynamically to ensure proper spacing and zero node overlaps
+  useEffect(() => {
+    if (fgRef.current) {
+      const nodeCount = filteredData.nodes.length;
+
+      // 1. Repulsion force (charge): Scales strongly with node count to push large codebases apart
+      const chargeStrength = nodeCount > 100 ? -650 : nodeCount > 50 ? -400 : -220;
+      fgRef.current.d3Force("charge")?.strength(chargeStrength).distanceMax(3500);
+
+      // 2. Link distance: Space connected nodes out comfortably with room for labels
+      const linkDistance = nodeCount > 100 ? 130 : nodeCount > 50 ? 90 : 60;
+      fgRef.current.d3Force("link")?.distance(linkDistance);
+
+      // 3. Collision force: Guarantee node circles never overlap each other
+      fgRef.current.d3Force(
+        "collide",
+        forceCollide((node: any) => (node.size || 5) + (nodeCount > 100 ? 18 : 12))
+      );
+
+      // Reheat simulation so forces re-evaluate and expand graph smoothly
+      fgRef.current.d3ReheatSimulation();
+    }
+  }, [filteredData]);
 
   const connectedNodeIds = React.useMemo(() => {
     const set = new Set<string>();
@@ -234,6 +277,7 @@ export function GraphCanvas({
   return (
     <div ref={containerRef} className="force-canvas-container relative overflow-hidden select-none bg-black">
       <ForceGraph2D
+        key={`${filteredData.nodes.length}-${filteredData.links.length}-${filteredData.nodes[0]?.id || "empty"}`}
         ref={fgRef}
         width={dimensions.width}
         height={dimensions.height}
@@ -268,8 +312,8 @@ export function GraphCanvas({
         linkDirectionalParticleColor={(link: any) =>
           link.isCircular ? "#ef4444" : "#ffffff"
         }
-        cooldownTicks={100}
-        d3VelocityDecay={0.3}
+        cooldownTicks={400}
+        d3VelocityDecay={0.25}
       />
 
       {/* Floating Canvas Controls */}
@@ -309,6 +353,20 @@ export function GraphCanvas({
         >
           {isPhysicsEngineActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
         </button>
+
+        {onReloadCurrentRepo && (
+          <>
+            <div className="h-3 w-[1px] bg-zinc-800 my-auto" />
+            <button
+              onClick={onReloadCurrentRepo}
+              disabled={isParsing}
+              className="p-1.5 rounded hover:bg-zinc-900 text-zinc-400 hover:text-zinc-100 transition-all disabled:opacity-50 cursor-pointer"
+              title="Reload / Refresh Repo from Source"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isParsing ? "animate-spin text-indigo-400" : ""}`} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Legend Overlay */}

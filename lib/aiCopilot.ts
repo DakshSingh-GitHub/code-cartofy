@@ -1,4 +1,5 @@
 import { CopilotReport, GraphData, SinglePointOfFailure } from "./types";
+import { getShortLabel } from "./graphParser";
 
 export function generateArchitecturalCopilotReport(graphData: GraphData): CopilotReport {
   const { nodes, links, circularLoops, stats } = graphData;
@@ -43,7 +44,7 @@ export function generateArchitecturalCopilotReport(graphData: GraphData): Copilo
 
   // 2. Circular Warnings
   const circularWarnings = circularLoops.map((loop) => {
-    const cycleNames = loop.map((path) => path.split("/").pop() || path);
+    const cycleNames = loop.map((path) => getShortLabel(path));
     return {
       cycle: cycleNames,
       impact: `Tightly couples ${cycleNames.length - 1} modules into an inseparable execution cycle.`,
