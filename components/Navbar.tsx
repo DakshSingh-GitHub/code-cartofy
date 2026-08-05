@@ -398,9 +398,18 @@ export function Navbar({
                 </div>
               )}
 
-              <div className="flex items-center gap-1.5 text-xs font-mono text-zinc-200 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-md">
-                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="truncate max-w-[120px]">{session.name}</span>
+              <div className="flex items-center gap-2 text-xs font-mono text-zinc-200 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-md shadow-sm">
+                <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-zinc-700 bg-zinc-950 flex items-center justify-center">
+                  <img
+                    src={session.avatarUrl || "/vlyxir/favicon.png"}
+                    alt={session.name}
+                    className="w-full h-full rounded-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "/vlyxir/favicon.png";
+                    }}
+                  />
+                </div>
+                <span className="truncate max-w-[130px] font-medium text-zinc-100">{session.name}</span>
               </div>
 
               <button

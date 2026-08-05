@@ -10,8 +10,11 @@ import {
   saveRepoToRecents,
   getStoredRepoById,
   removeRecentRepo,
+  syncUserReposWithSupabase,
+  ensureFullRepoFiles,
   StoredRepo,
 } from "@/lib/storage";
+import { getClientSession, UserSession } from "@/lib/auth";
 import { FileInput, GraphData, GraphNode } from "@/lib/types";
 
 import { Navbar } from "@/components/Navbar";
@@ -28,6 +31,9 @@ function CartofyWorkspaceContent() {
 
   const repoQuery = searchParams.get("repo");
   const githubQuery = searchParams.get("github");
+
+  // User session state
+  const [session, setSession] = useState<UserSession | null>(null);
 
   // State initialization
   const initialSample = SAMPLE_REPOSITORIES.find((r) => r.id === repoQuery) || SAMPLE_REPOSITORIES[0];
@@ -54,13 +60,24 @@ function CartofyWorkspaceContent() {
   // Drag and drop overlay state
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-  // Sync recent repos list on mount
+  // Sync recent repos list on mount and fetch user's Supabase repositories
   useEffect(() => {
-    setRecentRepos(getRecentRepos());
+    const activeSession = getClientSession();
+    setSession(activeSession);
+    setRecentRepos(getRecentRepos(activeSession));
+
+    if (activeSession) {
+      syncUserReposWithSupabase(activeSession).then((synced) => {
+        if (synced && synced.length > 0) {
+          setRecentRepos(synced);
+        }
+      });
+    }
   }, []);
 
   // Parse repo from URL params or restore from LocalStorage
   useEffect(() => {
+    const activeSession = getClientSession();
     if (githubQuery) {
       setIsParsing(true);
       fetchGitHubRepository(githubQuery)
@@ -104,25 +121,29 @@ function CartofyWorkspaceContent() {
         });
         setRecentRepos(updatedRecents);
       } else {
-        const stored = getStoredRepoById(repoQuery);
+        const stored = getStoredRepoById(repoQuery, activeSession);
         if (stored) {
           setCurrentRepoId(stored.id);
           setCurrentRepoName(stored.name);
           setCurrentRepoType(stored.type);
           setCurrentGithubUrl(stored.githubUrl);
-          setCurrentFiles(stored.files);
+          ensureFullRepoFiles(stored, activeSession).then((files: FileInput[]) => {
+            if (files && files.length > 0) setCurrentFiles(files);
+          });
         }
       }
     } else {
       // Restore latest repo from localStorage if no query param is passed
-      const recents = getRecentRepos();
+      const recents = getRecentRepos(activeSession);
       if (recents.length > 0) {
         const latest = recents[0];
         setCurrentRepoId(latest.id);
         setCurrentRepoName(latest.name);
         setCurrentRepoType(latest.type);
         setCurrentGithubUrl(latest.githubUrl);
-        setCurrentFiles(latest.files);
+        ensureFullRepoFiles(latest, activeSession).then((files: FileInput[]) => {
+          if (files && files.length > 0) setCurrentFiles(files);
+        });
       }
     }
   }, [githubQuery, repoQuery]);
@@ -133,13 +154,16 @@ function CartofyWorkspaceContent() {
   }, [currentFiles]);
 
   // Select/switch a recent repository from localStorage
-  const handleSelectRecentRepo = (stored: StoredRepo) => {
+  const handleSelectRecentRepo = async (stored: StoredRepo) => {
     setIsParsing(true);
     setCurrentRepoId(stored.id);
     setCurrentRepoName(stored.name);
     setCurrentRepoType(stored.type);
     setCurrentGithubUrl(stored.githubUrl);
-    setCurrentFiles(stored.files);
+
+    const fullFiles = await ensureFullRepoFiles(stored, session);
+    setCurrentFiles(fullFiles);
+
     setSelectedNode(null);
     setSpotlightCycleNodes(null);
     setShowCyclesOnly(false);
@@ -150,7 +174,7 @@ function CartofyWorkspaceContent() {
       name: stored.name,
       type: stored.type,
       githubUrl: stored.githubUrl,
-      files: stored.files,
+      files: fullFiles,
     });
     setRecentRepos(updatedRecents);
 

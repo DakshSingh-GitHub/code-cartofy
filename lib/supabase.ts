@@ -196,25 +196,121 @@ export async function loginWithSupabase(identifier: string, password: string): P
 }
 
 /**
- * Initiate Google OAuth sign in
+ * Supabase User Repository Record Interface
  */
-export async function loginWithGoogle(): Promise<{ error?: string }> {
-  if (!isSupabaseConfigured()) {
-    return { error: "Supabase environment variables (URL & Anon Key) are required for Google OAuth." };
+export interface SupabaseUserRepo {
+  id: string;
+  user_id: string;
+  user_email?: string;
+  username?: string;
+  repo_id: string;
+  repo_name: string;
+  type: "github" | "upload" | "sample";
+  github_url?: string;
+  files: any[];
+  file_count: number;
+  timestamp: number;
+}
+
+/**
+ * Save / Upsert graph repository data to Supabase `user_repositories` table
+ */
+export async function saveUserRepoToSupabase(
+  user: { id?: string; username?: string; email?: string },
+  repo: {
+    id: string;
+    name: string;
+    type: "github" | "upload" | "sample";
+    githubUrl?: string;
+    files: any[];
+    timestamp: number;
+    fileCount?: number;
   }
+): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { success: true };
+
+  const userId = user.username || user.id || user.email || "guest";
+  const recordId = `${userId}:${repo.id}`;
 
   try {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/cartofy`,
-      },
-    });
+    const payload = {
+      id: recordId,
+      user_id: userId,
+      username: user.username || userId,
+      user_email: user.email || "",
+      repo_id: repo.id,
+      repo_name: repo.name,
+      type: repo.type,
+      github_url: repo.githubUrl || null,
+      files: repo.files,
+      file_count: repo.files.length,
+      timestamp: repo.timestamp || Date.now(),
+      updated_at: new Date().toISOString(),
+    };
 
-    if (error) return { error: error.message };
-    return {};
+    const { error } = await supabase
+      .from("user_repositories")
+      .upsert(payload, { onConflict: "id" });
+
+    if (error) {
+      console.warn("Supabase repo upsert warning:", error.message);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Failed to launch Google Sign In.";
-    return { error: message };
+    const message = err instanceof Error ? err.message : "Failed to sync repo to Supabase";
+    return { success: false, error: message };
   }
 }
+
+/**
+ * Fetch all graph repositories for a user from Supabase `user_repositories` table
+ */
+export async function fetchUserReposFromSupabase(user: {
+  id?: string;
+  username?: string;
+  email?: string;
+}): Promise<SupabaseUserRepo[]> {
+  if (!isSupabaseConfigured()) return [];
+
+  const userId = user.username || user.id || user.email || "guest";
+
+  try {
+    const { data, error } = await supabase
+      .from("user_repositories")
+      .select("*")
+      .or(`user_id.eq.${userId},username.eq.${user.username || userId}`)
+      .order("timestamp", { ascending: false });
+
+    if (error) {
+      console.warn("Supabase repo fetch warning:", error.message);
+      return [];
+    }
+
+    return (data || []) as SupabaseUserRepo[];
+  } catch (err: unknown) {
+    console.error("Failed to fetch user repos from Supabase:", err);
+    return [];
+  }
+}
+
+/**
+ * Delete a repository from Supabase `user_repositories` table
+ */
+export async function deleteUserRepoFromSupabase(
+  user: { id?: string; username?: string; email?: string },
+  repoId: string
+): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+
+  const userId = user.username || user.id || user.email || "guest";
+  const recordId = `${userId}:${repoId}`;
+
+  try {
+    await supabase.from("user_repositories").delete().eq("id", recordId);
+  } catch (err) {
+    console.error("Failed to delete user repo from Supabase:", err);
+  }
+}
+

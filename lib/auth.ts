@@ -5,6 +5,8 @@ export interface UserSession {
   username?: string;
   country?: string;
   isGuest?: boolean;
+  avatarUrl?: string;
+  isVlyxir?: boolean;
 }
 
 const COOKIE_NAME = "cartofy_session";
@@ -24,6 +26,9 @@ export function getClientSession(): UserSession | null {
     if (parsed.email === "guest@cartofy.io" || (parsed.name && parsed.name.toLowerCase().includes("guest"))) {
       parsed.isGuest = true;
     }
+    if (!parsed.avatarUrl) {
+      parsed.avatarUrl = "/vlyxir/favicon.png";
+    }
     return parsed;
   } catch {
     const val = sessionCookie.split("=")[1];
@@ -32,6 +37,7 @@ export function getClientSession(): UserSession | null {
         id: "usr_default",
         name: "Developer",
         email: "dev@cartofy.io",
+        avatarUrl: "/vlyxir/favicon.png",
       };
     }
     return null;
@@ -48,6 +54,7 @@ export async function loginUser(
   if (typeof emailOrSession === "object") {
     user = {
       ...emailOrSession,
+      avatarUrl: emailOrSession.avatarUrl || "/vlyxir/favicon.png",
       isGuest: emailOrSession.isGuest || emailOrSession.email === "guest@cartofy.io",
     };
   } else {
@@ -55,6 +62,7 @@ export async function loginUser(
       id: `usr_${Date.now()}`,
       name: name || emailOrSession.split("@")[0] || "Developer",
       email: emailOrSession || "dev@cartofy.io",
+      avatarUrl: "/vlyxir/favicon.png",
       isGuest: isGuest || emailOrSession === "guest@cartofy.io" || (name ? name.toLowerCase().includes("guest") : false),
     };
   }

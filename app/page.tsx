@@ -76,9 +76,18 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             {session ? (
               <div className="flex items-center gap-2.5">
-                <div className="px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 flex items-center gap-2 font-mono">
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{session.name}</span>
+                <div className="px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 flex items-center gap-2 font-mono shadow-sm">
+                  <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-zinc-700 bg-zinc-950 flex items-center justify-center">
+                    <img
+                      src={session.avatarUrl || "/vlyxir/favicon.png"}
+                      alt={session.name}
+                      className="w-full h-full rounded-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/vlyxir/favicon.png";
+                      }}
+                    />
+                  </div>
+                  <span className="font-semibold text-zinc-100">{session.name}</span>
                 </div>
 
                 <button

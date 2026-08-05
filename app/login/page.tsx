@@ -8,9 +8,9 @@ import {
   registerWithSupabase,
   loginWithSupabase,
   checkUsernameAvailability,
-  loginWithGoogle,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import { loginWithVlyxirDatabase } from "@/lib/vlyxirSupabase";
 import {
   GitFork,
   Home,
@@ -74,6 +74,12 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Vlyxir database connection modal state
+  const [showVlyxirModal, setShowVlyxirModal] = useState(false);
+  const [vlyxirInput, setVlyxirInput] = useState("");
+  const [vlyxirPassword, setVlyxirPassword] = useState("");
+  const [showVlyxirPassword, setShowVlyxirPassword] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("redirect")) {
@@ -217,24 +223,59 @@ function LoginContent() {
     }
   };
 
-  // Google OAuth
-  const handleGoogleAuth = async () => {
-    setErrorMessage(null);
-    setLoading(true);
+  // Vlyxir Database-to-Database Connection Auth with Password Verification
+  const handleVlyxirAuth = async (overrideIdentifier?: string, overridePassword?: string) => {
+    const targetPassword = overridePassword !== undefined ? overridePassword : vlyxirPassword || password;
 
-    if (!isSupabaseConfigured()) {
-      // Fallback for local demo mode when keys are not configured
-      await loginUser("google.user@cartofy.io", "Google Developer");
-      setLoading(false);
-      router.push(redirectPath);
+    if (!overrideIdentifier) {
+      if (loginIdentifier.trim()) setVlyxirInput(loginIdentifier.trim());
+      else if (email.trim()) setVlyxirInput(email.trim());
+      else if (username.trim()) setVlyxirInput(username.trim());
+
+      if (password) setVlyxirPassword(password);
+
+      setShowVlyxirModal(true);
       return;
     }
 
-    const res = await loginWithGoogle();
-    if (res?.error) {
-      setErrorMessage(res.error);
-      setLoading(false);
+    const targetIdentifier = overrideIdentifier.trim();
+
+    if (!targetIdentifier) {
+      setErrorMessage("Please enter your Vlyxir email or username.");
+      return;
     }
+
+    if (!targetPassword || !targetPassword.trim()) {
+      setErrorMessage("Please enter your Vlyxir password.");
+      return;
+    }
+
+    setErrorMessage(null);
+    setLoading(true);
+
+    const res = await loginWithVlyxirDatabase(targetIdentifier, targetPassword);
+
+    if (!res.success || !res.profile) {
+      setLoading(false);
+      setErrorMessage(res.error || "Failed to authenticate with Vlyxir database.");
+      return;
+    }
+
+    const p = res.profile;
+
+    await loginUser({
+      id: p.id || `vlyxir_${Date.now()}`,
+      name: p.full_name || p.username || "Vlyxir User",
+      email: p.email || `${p.username || "user"}@vlyxir.io`,
+      username: p.username || targetIdentifier,
+      country: p.country || "Global",
+      avatarUrl: p.avatar_url || "/vlyxir/favicon.png",
+      isVlyxir: true,
+    });
+
+    setLoading(false);
+    setShowVlyxirModal(false);
+    router.push(redirectPath);
   };
 
   // Guest Bypass
@@ -627,33 +668,23 @@ function LoginContent() {
               <div className="flex-grow border-t border-zinc-800" />
             </div>
 
-            {/* GOOGLE OAUTH BUTTON */}
+            {/* VLYXIR DATABASE CONNECT BUTTON */}
             <button
               type="button"
-              onClick={handleGoogleAuth}
+              onClick={() => handleVlyxirAuth()}
               disabled={loading}
-              className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-2.5 cursor-pointer relative z-10"
+              className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-200 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-2.5 cursor-pointer relative z-10 shadow-sm group"
             >
-              {/* Google SVG Icon */}
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-zinc-700 p-0.5 bg-zinc-950 flex items-center justify-center">
+                <img
+                  src="/vlyxir/favicon.png"
+                  alt="Vlyxir Logo"
+                  className="w-full h-full rounded-full object-cover"
                 />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
-              </svg>
-              <span className="font-semibold">Google</span>
+              </div>
+              <span className="font-semibold text-zinc-100 group-hover:text-white">
+                Continue with Vlyxir
+              </span>
             </button>
 
             {/* TAB SWITCH FOOTER LINK */}
@@ -701,6 +732,95 @@ function LoginContent() {
       <footer className="border-t border-zinc-800 bg-zinc-950 px-6 py-4 text-center text-xs text-zinc-500 font-mono">
         © 2026 CODECARTOFY
       </footer>
+
+      {/* VLYXIR DATABASE CONNECT MODAL */}
+      {showVlyxirModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-6 w-full max-w-sm space-y-4 shadow-2xl relative animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-zinc-700 p-0.5 bg-zinc-900 flex items-center justify-center">
+                <img src="/vlyxir/favicon.png" alt="Vlyxir" className="w-full h-full rounded-full object-cover" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Continue with Vlyxir DB</h3>
+                <p className="text-[11px] text-zinc-400">Database-to-database user profile lookup</p>
+              </div>
+            </div>
+
+            {/* EMAIL OR USERNAME INPUT */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-mono font-semibold tracking-wider text-zinc-400 uppercase">
+                Vlyxir Email or Username
+              </label>
+              <div className="relative">
+                <User className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="e.g. daksh_dtlz_564 or user@vlyxir.io"
+                  value={vlyxirInput}
+                  onChange={(e) => setVlyxirInput(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 text-xs text-white rounded-lg pl-8 pr-3 py-2 focus:outline-none font-mono"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* VLYXIR PASSWORD INPUT */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-mono font-semibold tracking-wider text-zinc-400 uppercase">
+                Vlyxir Password
+              </label>
+              <div className="relative">
+                <Lock className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-zinc-500" />
+                <input
+                  type={showVlyxirPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={vlyxirPassword}
+                  onChange={(e) => setVlyxirPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleVlyxirAuth(vlyxirInput, vlyxirPassword);
+                    }
+                  }}
+                  className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 text-xs text-white rounded-lg pl-8 pr-8 py-2 focus:outline-none font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowVlyxirPassword(!showVlyxirPassword)}
+                  className="absolute right-2.5 top-2.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  {showVlyxirPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowVlyxirModal(false)}
+                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white rounded-md transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVlyxirAuth(vlyxirInput, vlyxirPassword)}
+                disabled={loading}
+                className="px-4 py-1.5 text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 rounded-md transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Verifying...</span>
+                  </>
+                ) : (
+                  "Verify & Sign In"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

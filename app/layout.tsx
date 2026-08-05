@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   title: "CodeCartofy — Interactive Codebase & Dependency Mapper",
   description:
     "Visual debugger and architecture mapping tool for Web and TypeScript applications. Parse ASTs, visualize dependencies in 2D force-directed canvas, detect circular import loops, and optimize codebase modularity with AI architecture analysis.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
