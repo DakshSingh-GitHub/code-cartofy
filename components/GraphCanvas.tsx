@@ -45,6 +45,34 @@ export function GraphCanvas({
   const [isPhysicsEngineActive, setIsPhysicsEngineActive] = useState(true);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
 
+  // Click tracking to ensure clicking anywhere other than nodes deselects
+  const isNodeClickedRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest(".canvas-overlay-control")) return;
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+    isNodeClickedRef.current = false;
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!pointerStartRef.current) return;
+    const dx = Math.abs(e.clientX - pointerStartRef.current.x);
+    const dy = Math.abs(e.clientY - pointerStartRef.current.y);
+    pointerStartRef.current = null;
+
+    // Ignore drags / pans (distance > 5px)
+    if (dx > 5 || dy > 5) return;
+
+    // Delay to let onNodeClick set isNodeClickedRef if a node was clicked
+    setTimeout(() => {
+      if (!isNodeClickedRef.current) {
+        onSelectNode(null);
+      }
+      isNodeClickedRef.current = false;
+    }, 40);
+  };
+
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
@@ -275,7 +303,12 @@ export function GraphCanvas({
   );
 
   return (
-    <div ref={containerRef} className="force-canvas-container relative overflow-hidden select-none bg-black">
+    <div
+      ref={containerRef}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      className="force-canvas-container relative overflow-hidden select-none bg-black w-full h-full"
+    >
       <ForceGraph2D
         key={`${filteredData.nodes.length}-${filteredData.links.length}-${filteredData.nodes[0]?.id || "empty"}`}
         ref={fgRef}
@@ -285,13 +318,27 @@ export function GraphCanvas({
         nodeVal={(node: any) => node.size || 5}
         nodeCanvasObject={drawNode}
         onNodeClick={(node: any) => {
+          isNodeClickedRef.current = true;
           onSelectNode(node);
           if (fgRef.current && node.x !== undefined && node.y !== undefined) {
             fgRef.current.centerAt(node.x, node.y, 400);
           }
         }}
         onNodeHover={(node: any) => setHoveredNode(node)}
-        onBackgroundClick={() => onSelectNode(null)}
+        onBackgroundClick={() => {
+          isNodeClickedRef.current = false;
+          onSelectNode(null);
+        }}
+        onBackgroundRightClick={() => {
+          onSelectNode(null);
+        }}
+        onLinkClick={() => {
+          isNodeClickedRef.current = false;
+          onSelectNode(null);
+        }}
+        onLinkRightClick={() => {
+          onSelectNode(null);
+        }}
         linkColor={getLinkColor}
         linkWidth={(link: any) => {
           if (link.isCircular) return 2;
@@ -317,7 +364,7 @@ export function GraphCanvas({
       />
 
       {/* Floating Canvas Controls */}
-      <div className="absolute bottom-5 left-5 flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 rounded-md p-1 shadow-lg z-20">
+      <div className="canvas-overlay-control absolute bottom-5 left-5 flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 rounded-md p-1 shadow-lg z-20">
         <button
           onClick={handleZoomIn}
           className="p-1.5 rounded hover:bg-zinc-900 text-zinc-400 hover:text-zinc-100 transition-all"
@@ -370,7 +417,7 @@ export function GraphCanvas({
       </div>
 
       {/* Legend Overlay */}
-      <div className="absolute top-4 left-5 hidden sm:flex items-center gap-4 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-1.5 text-[11px] font-mono text-zinc-400 z-20">
+      <div className="canvas-overlay-control absolute top-4 left-5 hidden sm:flex items-center gap-4 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-1.5 text-[11px] font-mono text-zinc-400 z-20">
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-rose-500" />
           <span>Route</span>
