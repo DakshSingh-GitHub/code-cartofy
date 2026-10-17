@@ -7,6 +7,7 @@ export interface UserSession {
   isGuest?: boolean;
   avatarUrl?: string;
   isVlyxir?: boolean;
+  githubUsername?: string;
 }
 
 const COOKIE_NAME = "cartofy_session";
@@ -135,4 +136,36 @@ export async function logoutUser(): Promise<void> {
   } catch {
     // ignore
   }
+}
+
+export async function updateUserSession(updates: Partial<UserSession>): Promise<UserSession | null> {
+  const current = getClientSession();
+  if (!current) return null;
+
+  const updated: UserSession = {
+    ...current,
+    ...updates,
+  };
+
+  try {
+    await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updated),
+    });
+  } catch (e) {
+    console.error("Auth API update error:", e);
+  }
+
+  const sessionStr = encodeURIComponent(JSON.stringify(updated));
+  document.cookie = `${COOKIE_NAME}=${sessionStr}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+
+  try {
+    localStorage.setItem("cartofy_user_session", JSON.stringify(updated));
+    window.dispatchEvent(new Event("cartofy_session_change"));
+  } catch {
+    // ignore
+  }
+
+  return updated;
 }

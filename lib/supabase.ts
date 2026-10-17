@@ -386,3 +386,278 @@ export async function deleteUserRepoFromSupabase(
   }
 }
 
+/**
+ * Supabase User GitHub Connection Record Interface
+ */
+export interface UserGithubConnectionRecord {
+  id?: string;
+  user_id: string;
+  username?: string;
+  user_email?: string;
+  github_username: string;
+  avatar_url?: string;
+  profile_url?: string;
+  public_repos_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Save / Upsert user's connected GitHub handle to Supabase `user_github_connections` table
+ */
+export async function saveUserGithubConnection(
+  user: { id?: string; username?: string; email?: string },
+  data: {
+    githubUsername: string;
+    avatarUrl?: string;
+    profileUrl?: string;
+    publicReposCount?: number;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  // Prefer user.id (UUID) so it aligns with auth.uid() if authenticated with Supabase
+  const primaryId = user.id || user.username || user.email || "guest";
+  const username = user.username || (user.id !== primaryId ? user.id : "") || primaryId;
+  const cleanGithubUsername = data.githubUsername.trim().replace(/^@/, "");
+
+  // 1. Local development / fallback storage (save under both ID and username for safety)
+  if (typeof window !== "undefined") {
+    try {
+      const storedMap = JSON.parse(localStorage.getItem("cartofy_github_connections") || "{}");
+      const record = {
+        user_id: primaryId,
+        username: username,
+        user_email: user.email || "",
+        github_username: cleanGithubUsername,
+        avatar_url: data.avatarUrl || "",
+        profile_url: data.profileUrl || `https://github.com/${cleanGithubUsername}`,
+        public_repos_count: data.publicReposCount || 0,
+        updated_at: new Date().toISOString(),
+      };
+      storedMap[primaryId] = record;
+      if (user.username && user.username !== primaryId) {
+        storedMap[user.username] = record;
+      }
+      localStorage.setItem("cartofy_github_connections", JSON.stringify(storedMap));
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Try server-side API endpoint (/api/user/github)
+  if (typeof window !== "undefined") {
+    try {
+      const res = await fetch("/api/user/github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: primaryId,
+          username: username,
+          email: user.email || "",
+          githubUsername: cleanGithubUsername,
+          avatarUrl: data.avatarUrl,
+          profileUrl: data.profileUrl,
+          publicReposCount: data.publicReposCount,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        return { success: true };
+      }
+      if (json.error && !json.error.includes("Database not configured")) {
+        console.warn("API /api/user/github returned error:", json.error, json.hint);
+      }
+    } catch (e) {
+      console.warn("API /api/user/github fetch error, attempting direct client fallback:", e);
+    }
+  }
+
+  if (!isSupabaseConfigured()) {
+    return { success: true };
+  }
+
+  // 3. Try client-side RPC save_github_connection (SECURITY DEFINER bypasses RLS)
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc("save_github_connection", {
+      p_user_id: primaryId,
+      p_username: username,
+      p_user_email: user.email || null,
+      p_github_username: cleanGithubUsername,
+      p_avatar_url: data.avatarUrl || null,
+      p_profile_url: data.profileUrl || `https://github.com/${cleanGithubUsername}`,
+      p_public_repos_count: data.publicReposCount || 0,
+    });
+
+    if (!rpcError && rpcData) {
+      return { success: true };
+    }
+  } catch {
+    // ignore and try direct table upsert
+  }
+
+  // 4. Try direct table upsert
+  try {
+    const payload = {
+      user_id: primaryId,
+      username: username,
+      user_email: user.email || "",
+      github_username: cleanGithubUsername,
+      avatar_url: data.avatarUrl || null,
+      profile_url: data.profileUrl || `https://github.com/${cleanGithubUsername}`,
+      public_repos_count: data.publicReposCount || 0,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("user_github_connections")
+      .upsert(payload, { onConflict: "user_id" });
+
+    if (error) {
+      console.warn("Supabase user_github_connections upsert error:", error.message, error.code);
+      return {
+        success: false,
+        error:
+          error.code === "42501"
+            ? "Row Level Security (RLS) blocked the update. Please run fix_github_table.sql in your Supabase SQL editor."
+            : error.message,
+      };
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to save GitHub connection to database";
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Fetch connected GitHub handle for a user from Supabase `user_github_connections` table
+ */
+export async function fetchUserGithubConnection(user: {
+  id?: string;
+  username?: string;
+  email?: string;
+}): Promise<UserGithubConnectionRecord | null> {
+  const primaryId = user.id || user.username || user.email || "guest";
+  const username = user.username || "";
+  const email = user.email || "";
+
+  // 1. Try server API route first
+  if (typeof window !== "undefined") {
+    try {
+      const q = new URLSearchParams({
+        userId: primaryId,
+        ...(username ? { username } : {}),
+        ...(email ? { email } : {}),
+      });
+      const res = await fetch(`/api/user/github?${q.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          return json.data as UserGithubConnectionRecord;
+        }
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  // 2. Direct client query
+  if (isSupabaseConfigured()) {
+    try {
+      const filterParts: string[] = [];
+      if (primaryId) filterParts.push(`user_id.eq.${primaryId}`);
+      if (username) {
+        filterParts.push(`user_id.eq.${username}`);
+        filterParts.push(`username.eq.${username}`);
+      }
+      if (email) filterParts.push(`user_email.eq.${email}`);
+
+      if (filterParts.length > 0) {
+        const { data, error } = await supabase
+          .from("user_github_connections")
+          .select("*")
+          .or(filterParts.join(","))
+          .maybeSingle();
+
+        if (!error && data) {
+          return data as UserGithubConnectionRecord;
+        }
+      }
+    } catch (err) {
+      console.warn("Direct Supabase fetch error:", err);
+    }
+  }
+
+  // 3. Fallback to local storage
+  if (typeof window !== "undefined") {
+    try {
+      const storedMap = JSON.parse(localStorage.getItem("cartofy_github_connections") || "{}");
+      if (storedMap[primaryId]) return storedMap[primaryId] as UserGithubConnectionRecord;
+      if (username && storedMap[username]) return storedMap[username] as UserGithubConnectionRecord;
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Delete connected GitHub handle for a user from Supabase `user_github_connections` table
+ */
+export async function deleteUserGithubConnection(user: {
+  id?: string;
+  username?: string;
+  email?: string;
+}): Promise<void> {
+  const primaryId = user.id || user.username || user.email || "guest";
+  const username = user.username || "";
+
+  // 1. Clean local storage fallback
+  if (typeof window !== "undefined") {
+    try {
+      const storedMap = JSON.parse(localStorage.getItem("cartofy_github_connections") || "{}");
+      delete storedMap[primaryId];
+      if (username) delete storedMap[username];
+      localStorage.setItem("cartofy_github_connections", JSON.stringify(storedMap));
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Call server API route
+  if (typeof window !== "undefined") {
+    try {
+      await fetch("/api/user/github", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: primaryId, username }),
+      });
+    } catch {
+      // fallback
+    }
+  }
+
+  // 3. Direct client delete
+  if (isSupabaseConfigured()) {
+    try {
+      const filterParts: string[] = [];
+      if (primaryId) filterParts.push(`user_id.eq.${primaryId}`);
+      if (username) {
+        filterParts.push(`user_id.eq.${username}`);
+        filterParts.push(`username.eq.${username}`);
+      }
+      if (filterParts.length > 0) {
+        await supabase
+          .from("user_github_connections")
+          .delete()
+          .or(filterParts.join(","));
+      }
+    } catch (err) {
+      console.error("Failed to delete user GitHub connection from Supabase:", err);
+    }
+  }
+}
+
+
+

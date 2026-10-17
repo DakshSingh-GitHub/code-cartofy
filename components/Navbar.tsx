@@ -23,6 +23,7 @@ import {
   Clock,
   Trash2,
   RotateCw,
+  ArrowRight,
 } from "lucide-react";
 import { SAMPLE_REPOSITORIES } from "@/lib/sampleRepositories";
 import { GraphData } from "@/lib/types";
@@ -41,6 +42,7 @@ function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
 interface NavbarProps {
   currentRepoName: string;
   currentRepoId?: string;
+  isDemoMode?: boolean;
   graphData: GraphData | null;
   searchQuery: string;
   onSearchChange: (q: string) => void;
@@ -59,6 +61,7 @@ interface NavbarProps {
 export function Navbar({
   currentRepoName,
   currentRepoId,
+  isDemoMode,
   graphData,
   searchQuery,
   onSearchChange,
@@ -108,6 +111,7 @@ export function Navbar({
   const hasCycles = (stats?.circularLoopCount || 0) > 0;
   const isCustomWorkspace = !SAMPLE_REPOSITORIES.some((r) => r.name === currentRepoName);
   const isGuestMode = session?.isGuest || session?.email === "guest@cartofy.io" || (session?.name && session.name.toLowerCase().includes("guest"));
+  const inDemoMode = !!isDemoMode || !!isGuestMode || (currentRepoId ? SAMPLE_REPOSITORIES.some((r) => r.id === currentRepoId) : false);
 
   const handleNativeFolderSelect = async () => {
     if (isGuestMode) return;
@@ -200,6 +204,13 @@ export function Navbar({
           </Link>
 
           <span className="text-zinc-700 font-mono text-xs">/</span>
+
+          {inDemoMode && (
+            <div className="hidden md:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-bold tracking-wider uppercase">
+              <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+              <span>Demo Mode</span>
+            </div>
+          )}
 
           {/* Repo Selector & Reload Button Group */}
           <div className="flex items-center gap-1">
@@ -310,68 +321,85 @@ export function Navbar({
                     </div>
                   )}
 
-                  {/* SAMPLE REPOSITORIES SECTION */}
-                  <div className="space-y-1">
-                    <div className="px-2 py-1 flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3 h-3 text-emerald-400" />
-                        Sample Repositories
-                      </span>
+                  {/* SAMPLE REPOSITORIES SECTION - ONLY VISIBLE IN DEMO MODE */}
+                  {inDemoMode ? (
+                    <div className="space-y-1">
+                      <div className="px-2 py-1 flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                          Demo Repositories
+                        </span>
+                        <span className="text-[9px] font-mono text-zinc-500 uppercase">Pre-loaded</span>
+                      </div>
+
+                      {SAMPLE_REPOSITORIES.map((repo) => {
+                        const isSelected = repo.name === currentRepoName;
+                        return (
+                          <button
+                            key={repo.id}
+                            onClick={() => {
+                              onSelectSampleRepo(repo.id);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-3 group ${
+                              isSelected
+                                ? "bg-zinc-900 border-zinc-700 text-zinc-100 shadow-sm"
+                                : "bg-transparent border-transparent hover:bg-zinc-900/60 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <div
+                                className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 ${
+                                  repo.id === "circular-loop-demo"
+                                    ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                                    : repo.id === "nextjs-ecommerce"
+                                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
+                                    : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                }`}
+                              >
+                                {repo.id === "circular-loop-demo" ? (
+                                  <AlertTriangle className="w-3 h-3" />
+                                ) : repo.id === "nextjs-ecommerce" ? (
+                                  <ShoppingBag className="w-3 h-3" />
+                                ) : (
+                                  <Palette className="w-3 h-3" />
+                                )}
+                              </div>
+
+                              <div className="truncate">
+                                <p className="text-xs font-semibold text-zinc-100 group-hover:text-white truncate">
+                                  {repo.name.replace(/^[^\s]+\s/, "")}
+                                </p>
+                                <p className="text-[9px] font-mono text-zinc-500 truncate">
+                                  {repo.files.length} Files • {repo.category}
+                                </p>
+                              </div>
+                            </div>
+
+                            {isSelected && (
+                              <div className="w-4 h-4 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                                <Check className="w-2.5 h-2.5" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
-
-                    {SAMPLE_REPOSITORIES.map((repo) => {
-                      const isSelected = repo.name === currentRepoName;
-                      return (
-                        <button
-                          key={repo.id}
-                          onClick={() => {
-                            onSelectSampleRepo(repo.id);
-                            setIsDropdownOpen(false);
-                          }}
-                          className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-3 group ${
-                            isSelected
-                              ? "bg-zinc-900 border-zinc-700 text-zinc-100 shadow-sm"
-                              : "bg-transparent border-transparent hover:bg-zinc-900/60 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <div
-                              className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 ${
-                                repo.id === "circular-loop-demo"
-                                  ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                                  : repo.id === "nextjs-ecommerce"
-                                  ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
-                                  : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                              }`}
-                            >
-                              {repo.id === "circular-loop-demo" ? (
-                                <AlertTriangle className="w-3 h-3" />
-                              ) : repo.id === "nextjs-ecommerce" ? (
-                                <ShoppingBag className="w-3 h-3" />
-                              ) : (
-                                <Palette className="w-3 h-3" />
-                              )}
-                            </div>
-
-                            <div className="truncate">
-                              <p className="text-xs font-semibold text-zinc-100 group-hover:text-white truncate">
-                                {repo.name.replace(/^[^\s]+\s/, "")}
-                              </p>
-                              <p className="text-[9px] font-mono text-zinc-500 truncate">
-                                {repo.files.length} Files • {repo.category}
-                              </p>
-                            </div>
-                          </div>
-
-                          {isSelected && (
-                            <div className="w-4 h-4 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                              <Check className="w-2.5 h-2.5" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  ) : (
+                    <div className="pt-2 border-t border-zinc-800">
+                      <Link
+                        href="/cartofy?demo=true"
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="w-full text-left p-2 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/40 hover:bg-zinc-900 transition-all flex items-center justify-between gap-2 text-zinc-400 hover:text-zinc-200 group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-xs font-medium">Switch to Demo Mode</span>
+                        </div>
+                        <ArrowRight className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300" />
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -390,10 +418,18 @@ export function Navbar({
           </div>
         </div>
 
-        {/* Right: User Session Profile Badge & Sign Out */}
+        {/* Right: Dashboard Link, User Session Profile Badge & Sign Out */}
         <div className="flex items-center gap-2">
           {session ? (
             <div className="flex items-center gap-2">
+              <Link
+                href="/dashboard"
+                className="px-2.5 py-1 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-mono text-zinc-300 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                title="Go to Dashboard"
+              >
+                <span>Dashboard</span>
+              </Link>
+
               {isGuestMode && (
                 <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded shadow-sm">
                   <Lock className="w-3 h-3 text-amber-400" />

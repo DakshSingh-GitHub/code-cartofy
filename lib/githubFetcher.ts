@@ -120,3 +120,94 @@ function getDirectoryPriorityScore(path: string): number {
   if (/\.(ts|js)$/i.test(path)) score += 2;
   return score;
 }
+
+export interface GitHubUserProfile {
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+  bio: string | null;
+  publicRepos: number;
+  htmlUrl: string;
+}
+
+export interface GitHubRepoSummary {
+  id: number;
+  name: string;
+  fullName: string;
+  description: string | null;
+  language: string | null;
+  stars: number;
+  forks: number;
+  updatedAt: string;
+  isPrivate: boolean;
+  defaultBranch: string;
+  htmlUrl: string;
+  size: number;
+}
+
+export async function fetchUserGitHubProfile(username: string): Promise<GitHubUserProfile> {
+  const cleanUsername = username.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
+  if (!cleanUsername) {
+    throw new Error("GitHub username cannot be empty.");
+  }
+
+  const res = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUsername)}`);
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error(`GitHub user '${cleanUsername}' was not found.`);
+    }
+    if (res.status === 403) {
+      throw new Error("GitHub API rate limit reached. Please wait a few moments.");
+    }
+    throw new Error(`GitHub API error (${res.status}): ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  return {
+    login: data.login,
+    name: data.name || data.login,
+    avatarUrl: data.avatar_url,
+    bio: data.bio || null,
+    publicRepos: data.public_repos || 0,
+    htmlUrl: data.html_url,
+  };
+}
+
+export async function fetchUserPublicRepositories(username: string): Promise<GitHubRepoSummary[]> {
+  const cleanUsername = username.trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
+  if (!cleanUsername) {
+    throw new Error("GitHub username cannot be empty.");
+  }
+
+  const res = await fetch(
+    `https://api.github.com/users/${encodeURIComponent(cleanUsername)}/repos?sort=updated&per_page=100&type=public`
+  );
+
+  if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error(`User '${cleanUsername}' not found on GitHub.`);
+    }
+    if (res.status === 403) {
+      throw new Error("GitHub rate limit reached. Please try again in a few minutes.");
+    }
+    throw new Error(`GitHub API error (${res.status}): ${res.statusText}`);
+  }
+
+  const rawList = await res.json();
+  if (!Array.isArray(rawList)) return [];
+
+  return rawList.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    fullName: r.full_name,
+    description: r.description || null,
+    language: r.language || null,
+    stars: r.stargazers_count || 0,
+    forks: r.forks_count || 0,
+    updatedAt: r.updated_at,
+    isPrivate: r.private || false,
+    defaultBranch: r.default_branch || "main",
+    htmlUrl: r.html_url,
+    size: r.size || 0,
+  }));
+}

@@ -238,7 +238,14 @@ export function getRecentRepos(user?: UserSession | null): StoredRepo[] {
     if (!raw) return [];
     const list = JSON.parse(raw) as StoredRepo[];
     if (!Array.isArray(list)) return [];
-    return list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    const filtered = !user?.isGuest
+      ? list.filter(
+          (r) =>
+            r.type !== "sample" &&
+            !SAMPLE_REPOSITORIES.some((s) => s.id === r.id || s.name === r.name)
+        )
+      : list;
+    return filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   } catch (err) {
     console.error(`Failed to parse recent repos for key ${key} from localStorage:`, err);
     return [];

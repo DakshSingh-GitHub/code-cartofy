@@ -17,13 +17,23 @@ import {
 import { getClientSession, UserSession } from "@/lib/auth";
 import { FileInput, GraphData, GraphNode } from "@/lib/types";
 
+import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { GraphCanvas } from "@/components/GraphCanvas";
 import { Sidebar } from "@/components/Sidebar";
 import { GitHubModal } from "@/components/GitHubModal";
 import { FileInspectorModal } from "@/components/FileInspectorModal";
 import { ExportModal } from "@/components/ExportModal";
-import { UploadCloud, Loader2 } from "lucide-react";
+import { UploadCloud, Loader2, GitFork, ArrowRight, Sparkles } from "lucide-react";
+
+function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+      <path d="M9 18c-4.51 2-5-2-7-2" />
+    </svg>
+  );
+}
 
 function CartofyWorkspaceContent() {
   const searchParams = useSearchParams();
@@ -31,17 +41,24 @@ function CartofyWorkspaceContent() {
 
   const repoQuery = searchParams.get("repo");
   const githubQuery = searchParams.get("github");
+  const demoQuery = searchParams.get("demo");
 
   // User session state
   const [session, setSession] = useState<UserSession | null>(null);
 
-  // State initialization
-  const initialSample = SAMPLE_REPOSITORIES.find((r) => r.id === repoQuery) || SAMPLE_REPOSITORIES[0];
-  const [currentRepoId, setCurrentRepoId] = useState<string>(initialSample.id);
-  const [currentRepoName, setCurrentRepoName] = useState<string>(initialSample.name);
-  const [currentRepoType, setCurrentRepoType] = useState<"github" | "upload" | "sample">("sample");
+  // Demo mode detection: explicit demo parameter or guest session
+  const isDemoMode = demoQuery === "true" || session?.isGuest === true;
+
+  // Initial repo setup: only pre-load sample repositories if explicitly in demo mode or sample query
+  const initialSample = (demoQuery === "true" || (repoQuery && SAMPLE_REPOSITORIES.some(r => r.id === repoQuery)))
+    ? (SAMPLE_REPOSITORIES.find((r) => r.id === repoQuery) || SAMPLE_REPOSITORIES[0])
+    : null;
+
+  const [currentRepoId, setCurrentRepoId] = useState<string>(initialSample?.id || "");
+  const [currentRepoName, setCurrentRepoName] = useState<string>(initialSample?.name || "");
+  const [currentRepoType, setCurrentRepoType] = useState<"github" | "upload" | "sample">(initialSample ? "sample" : "github");
   const [currentGithubUrl, setCurrentGithubUrl] = useState<string | undefined>(undefined);
-  const [currentFiles, setCurrentFiles] = useState<FileInput[]>(initialSample.files);
+  const [currentFiles, setCurrentFiles] = useState<FileInput[]>(initialSample?.files || []);
   const [recentRepos, setRecentRepos] = useState<StoredRepo[]>([]);
 
   // Workspace controls
@@ -78,6 +95,8 @@ function CartofyWorkspaceContent() {
   // Parse repo from URL params or restore from LocalStorage
   useEffect(() => {
     const activeSession = getClientSession();
+    const isDemo = demoQuery === "true" || activeSession?.isGuest === true;
+
     if (githubQuery) {
       setIsParsing(true);
       fetchGitHubRepository(githubQuery)
@@ -104,36 +123,42 @@ function CartofyWorkspaceContent() {
           console.error("GitHub URL load error:", err);
           setIsParsing(false);
         });
-    } else if (repoQuery) {
-      const foundSample = SAMPLE_REPOSITORIES.find((r) => r.id === repoQuery);
-      if (foundSample) {
-        setCurrentRepoId(foundSample.id);
-        setCurrentRepoName(foundSample.name);
-        setCurrentRepoType("sample");
-        setCurrentGithubUrl(undefined);
-        setCurrentFiles(foundSample.files);
+    } else if (isDemo) {
+      // In Demo Mode: load preloaded sample repository
+      const foundSample = SAMPLE_REPOSITORIES.find((r) => r.id === repoQuery) || SAMPLE_REPOSITORIES[0];
+      setCurrentRepoId(foundSample.id);
+      setCurrentRepoName(foundSample.name);
+      setCurrentRepoType("sample");
+      setCurrentGithubUrl(undefined);
+      setCurrentFiles(foundSample.files);
 
-        const updatedRecents = saveRepoToRecents({
-          id: foundSample.id,
-          name: foundSample.name,
-          type: "sample",
-          files: foundSample.files,
+      const updatedRecents = saveRepoToRecents({
+        id: foundSample.id,
+        name: foundSample.name,
+        type: "sample",
+        files: foundSample.files,
+      });
+      setRecentRepos(updatedRecents);
+    } else if (repoQuery) {
+      // Normal workspace: check if it matches a stored user repository
+      const stored = getStoredRepoById(repoQuery, activeSession);
+      if (stored && stored.type !== "sample") {
+        setCurrentRepoId(stored.id);
+        setCurrentRepoName(stored.name);
+        setCurrentRepoType(stored.type);
+        setCurrentGithubUrl(stored.githubUrl);
+        ensureFullRepoFiles(stored, activeSession).then((files: FileInput[]) => {
+          if (files && files.length > 0) setCurrentFiles(files);
         });
-        setRecentRepos(updatedRecents);
       } else {
-        const stored = getStoredRepoById(repoQuery, activeSession);
-        if (stored) {
-          setCurrentRepoId(stored.id);
-          setCurrentRepoName(stored.name);
-          setCurrentRepoType(stored.type);
-          setCurrentGithubUrl(stored.githubUrl);
-          ensureFullRepoFiles(stored, activeSession).then((files: FileInput[]) => {
-            if (files && files.length > 0) setCurrentFiles(files);
-          });
+        // If query is a sample repo but not in demo mode, redirect to demo mode
+        const isSample = SAMPLE_REPOSITORIES.some((r) => r.id === repoQuery);
+        if (isSample) {
+          router.replace(`/cartofy?demo=true&repo=${repoQuery}`);
         }
       }
     } else {
-      // Restore latest repo from localStorage if no query param is passed
+      // Normal workspace without query params: load most recent repository
       const recents = getRecentRepos(activeSession);
       if (recents.length > 0) {
         const latest = recents[0];
@@ -144,9 +169,14 @@ function CartofyWorkspaceContent() {
         ensureFullRepoFiles(latest, activeSession).then((files: FileInput[]) => {
           if (files && files.length > 0) setCurrentFiles(files);
         });
+      } else {
+        // No repository active: leave empty to show clean workspace prompt
+        setCurrentRepoId("");
+        setCurrentRepoName("");
+        setCurrentFiles([]);
       }
     }
-  }, [githubQuery, repoQuery]);
+  }, [githubQuery, repoQuery, demoQuery]);
 
   // Re-parse graph whenever files change
   const graphData: GraphData = useMemo(() => {
@@ -439,6 +469,7 @@ function CartofyWorkspaceContent() {
       <Navbar
         currentRepoName={currentRepoName}
         currentRepoId={currentRepoId}
+        isDemoMode={isDemoMode}
         graphData={graphData}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -459,6 +490,63 @@ function CartofyWorkspaceContent() {
 
       {/* Main Canvas & Sidebar Workspace */}
       <div className="flex-1 flex overflow-hidden relative">
+        {/* Floating Demo Mode Badge */}
+        {isDemoMode && (
+          <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-zinc-950/90 border border-emerald-500/30 backdrop-blur-md shadow-xl text-xs text-zinc-300 pointer-events-auto">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Demo Mode</span>
+            <span className="text-zinc-600">•</span>
+            <span className="font-semibold text-white truncate max-w-[200px]">{currentRepoName}</span>
+            <span className="text-zinc-600">|</span>
+            <Link
+              href="/dashboard"
+              className="text-[11px] font-mono text-zinc-400 hover:text-white transition-colors underline underline-offset-2"
+            >
+              Exit Demo
+            </Link>
+          </div>
+        )}
+
+        {/* Empty Workspace State when non-demo user has no repository loaded */}
+        {!isDemoMode && currentFiles.length === 0 && !isParsing ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/90 p-6 pointer-events-auto">
+            <div className="max-w-md w-full p-8 rounded-2xl bg-zinc-950 border border-zinc-800 text-center space-y-6 shadow-2xl">
+              <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-300 shadow-sm">
+                <GitFork className="w-6 h-6 transform rotate-90 text-indigo-400" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-white">No Active Repository Loaded</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Select a repository from your dashboard, import a public GitHub URL, or launch Demo Mode to test-drive sample codebases.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2.5 pt-2">
+                <Link
+                  href="/dashboard"
+                  className="w-full py-2.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <span>Open Dashboard</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+                <button
+                  onClick={() => setIsGithubModalOpen(true)}
+                  className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-200 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <GitHubIcon className="w-3.5 h-3.5" />
+                  <span>Import GitHub Repository</span>
+                </button>
+                <Link
+                  href="/cartofy?demo=true"
+                  className="w-full py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Explore in Demo Mode</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {/* Force Directed Graph Canvas */}
         <div className="flex-1 h-full relative">
           <GraphCanvas

@@ -51,7 +51,7 @@ const COUNTRIES = [
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/cartofy";
+  const redirectPath = searchParams.get("redirect") || "/dashboard";
 
   const [mode, setMode] = useState<"login" | "signup">("signup");
 

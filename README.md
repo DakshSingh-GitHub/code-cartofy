@@ -2030,7 +2030,7 @@ When running CodeCartofy with cloud persistence, the Supabase PostgreSQL databas
                                                        └────────────────────────────────────────┘
 ```
 
-### 10.1 PostgreSQL Tables DDL (`profiles`, `user_repositories`)
+### 10.1 PostgreSQL Tables DDL (`profiles`, `user_repositories`, `user_github_connections`)
 
 Execute the following SQL migration script in your Supabase SQL Editor:
 
@@ -2087,16 +2087,43 @@ CREATE INDEX IF NOT EXISTS idx_user_repos_username
 
 CREATE INDEX IF NOT EXISTS idx_user_repos_timestamp 
     ON public.user_repositories (timestamp DESC);
+
+-- ==============================================================================
+-- 3. USER_GITHUB_CONNECTIONS TABLE: Stores connected GitHub usernames
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.user_github_connections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL,
+    username TEXT,
+    user_email TEXT,
+    github_username TEXT NOT NULL,
+    avatar_url TEXT,
+    profile_url TEXT,
+    public_repos_count INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    CONSTRAINT unique_user_github UNIQUE (user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_github_user_id 
+    ON public.user_github_connections (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_github_username 
+    ON public.user_github_connections (username);
+
+CREATE INDEX IF NOT EXISTS idx_user_github_handle 
+    ON public.user_github_connections (LOWER(github_username));
 ```
 
 ### 10.2 Row Level Security (RLS) Policies
 
-To enforce data isolation, enable Row Level Security (RLS) on both tables:
+To enforce data isolation, enable Row Level Security (RLS) on all tables:
 
 ```sql
 -- Enable Row Level Security
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_repositories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_github_connections ENABLE ROW LEVEL SECURITY;
 
 -- ------------------------------------------------------------------------------
 -- PROFILES POLICIES
@@ -2145,6 +2172,35 @@ CREATE POLICY "Users can upsert own repositories"
 -- Allow delete for repo records owned by user
 CREATE POLICY "Users can delete own repositories" 
     ON public.user_repositories 
+    FOR DELETE 
+    USING (
+        user_id = auth.uid()::text OR 
+        username = (auth.jwt() ->> 'preferred_username')
+    );
+
+-- ------------------------------------------------------------------------------
+-- USER_GITHUB_CONNECTIONS POLICIES
+-- ------------------------------------------------------------------------------
+CREATE POLICY "Users can read own github connection" 
+    ON public.user_github_connections 
+    FOR SELECT 
+    USING (
+        user_id = auth.uid()::text OR 
+        username = (auth.jwt() ->> 'preferred_username') OR
+        user_id = 'guest'
+    );
+
+CREATE POLICY "Users can upsert own github connection" 
+    ON public.user_github_connections 
+    FOR ALL 
+    USING (
+        user_id = auth.uid()::text OR 
+        username = (auth.jwt() ->> 'preferred_username') OR
+        user_id = 'guest'
+    );
+
+CREATE POLICY "Users can delete own github connection" 
+    ON public.user_github_connections 
     FOR DELETE 
     USING (
         user_id = auth.uid()::text OR 

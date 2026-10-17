@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { SAMPLE_REPOSITORIES } from "@/lib/sampleRepositories";
 import { getClientSession, logoutUser, UserSession } from "@/lib/auth";
 import { AuthModal } from "@/components/AuthModal";
 import {
@@ -15,6 +14,7 @@ import {
   Zap,
   LogOut,
   LogIn,
+  Sparkles,
 } from "lucide-react";
 
 function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -75,6 +75,14 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             {session ? (
               <div className="flex items-center gap-2.5">
+                <Link
+                  href="/dashboard"
+                  className="px-3 py-1.5 rounded-md bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+                >
+                  <span>Dashboard</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+
                 <div className="px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 flex items-center gap-2 font-mono shadow-sm">
                   <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-zinc-700 bg-zinc-950 flex items-center justify-center">
                     <img
@@ -154,19 +162,19 @@ export default function LandingPage() {
         {/* Quick Action Buttons */}
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <Link
-            href="/cartofy"
-            className="px-5 py-2.5 rounded-md bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-xs font-medium transition-all flex items-center gap-2"
+            href="/dashboard"
+            className="px-5 py-2.5 rounded-md bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-xs font-semibold transition-all flex items-center gap-2 shadow-sm"
           >
-            <span>Open Graph Canvas</span>
+            <span>Open Dashboard</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
-          <Link
-            href="/cartofy?repo=circular-loop-demo"
-            className="px-5 py-2.5 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-medium font-mono transition-all flex items-center gap-2"
+          {/* <Link
+            href="/cartofy?demo=true"
+            className="px-5 py-2.5 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-semibold transition-all flex items-center gap-2 hover:text-white"
           >
-            <Code2 className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Try Circular Loop Demo</span>
-          </Link>
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Try Demo Mode</span>
+          </Link> */}
         </div>
       </main>
 
@@ -214,44 +222,30 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Pre-loaded Sample Architectures */}
-      <section className="border-t border-zinc-800/80 py-16">
-        <div className="max-w-5xl mx-auto px-6 space-y-8">
-          <div className="text-center space-y-1">
-            <h2 className="text-xl font-semibold text-white tracking-tight">Pre-loaded Codebases</h2>
-            <p className="text-xs text-zinc-400">Select any sample codebase to analyze its dependency graph</p>
-          </div>
-
-          <div className="grid sm:grid-cols-3 gap-4">
-            {SAMPLE_REPOSITORIES.map((repo) => (
-              <Link
-                key={repo.id}
-                href={`/cartofy?repo=${repo.id}`}
-                className="p-5 rounded-lg bg-zinc-950 border border-zinc-800 hover:border-zinc-700 transition-all flex flex-col justify-between group space-y-4"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800">
-                      {repo.category}
-                    </span>
-                    <span className="text-[11px] font-mono text-zinc-500">
-                      {repo.files.length} Files
-                    </span>
-                  </div>
-                  <h3 className="text-sm font-semibold text-white group-hover:text-zinc-200 transition-all">
-                    {repo.name}
-                  </h3>
-                  <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
-                    {repo.description}
-                  </p>
-                </div>
-
-                <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between text-xs font-mono text-zinc-400 group-hover:text-zinc-200 transition-all">
-                  <span>Explore Graph</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </div>
-              </Link>
-            ))}
+      {/* Interactive Demo Mode Gateway */}
+      <section className="border-t border-zinc-800/80 py-16 bg-gradient-to-b from-transparent to-zinc-950/60">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="p-8 rounded-2xl bg-zinc-950 border border-zinc-800/80 shadow-2xl relative overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="space-y-2 text-center sm:text-left">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-semibold uppercase">
+                <Sparkles className="w-3 h-3 text-emerald-400" />
+                <span>Zero Account Setup Required</span>
+              </div>
+              <h2 className="text-xl font-bold text-white tracking-tight">
+                Preview CodeCartofy in Demo Mode
+              </h2>
+              <p className="text-xs text-zinc-400 max-w-md leading-relaxed">
+                Test-drive client-side AST dependency mapping, cycle detection algorithms, and AI copilot audits with preloaded architectural testbeds.
+              </p>
+            </div>
+            <Link
+              href="/cartofy?demo=true"
+              className="px-6 py-3 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold transition-all flex items-center gap-2 shrink-0 shadow-lg group cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <span>Launch Demo Mode</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
           </div>
         </div>
       </section>
