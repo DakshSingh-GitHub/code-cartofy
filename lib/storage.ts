@@ -118,7 +118,35 @@ export async function ensureFullRepoFiles(
 }
 
 /**
- * Safely persist repository recents to LocalStorage without corrupting AST source code
+ * Helper to clean up stale full payload caches to free up LocalStorage quota
+ */
+function cleanOldPayloadCaches(currentKeyToKeep?: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("cartofy_full_payload_")) {
+        if (!currentKeyToKeep || key !== currentKeyToKeep) {
+          keysToRemove.push(key);
+        }
+      }
+    }
+    keysToRemove.forEach((k) => {
+      try {
+        localStorage.removeItem(k);
+      } catch {
+        // ignore
+      }
+    });
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Safely persist repository recents to LocalStorage with progressive 4-tier degradation
+ * to ensure QuotaExceededError is gracefully handled.
  */
 function safeSetLocalStorage(
   storageKey: string,
@@ -128,39 +156,72 @@ function safeSetLocalStorage(
   if (typeof window === "undefined") return;
 
   const activeEntry = dataList.find((r) => r.id === activeId) || dataList[0];
+  const payloadKey = activeEntry ? `cartofy_full_payload_${storageKey}_${activeEntry.id}` : undefined;
 
-  // Store full active files payload in a dedicated key for local caching
-  if (activeEntry && activeEntry.files && activeEntry.files.length > 0) {
+  // 1. Evict older payload caches to free quota
+  cleanOldPayloadCaches(payloadKey);
+
+  // 2. Cache active full files ONLY if payload size is reasonable (< 1.5MB)
+  if (activeEntry && activeEntry.files && activeEntry.files.length > 0 && payloadKey) {
     try {
-      localStorage.setItem(
-        `cartofy_full_payload_${storageKey}_${activeEntry.id}`,
-        JSON.stringify(activeEntry.files)
-      );
-    } catch {}
+      const payloadStr = JSON.stringify(activeEntry.files);
+      if (payloadStr.length < 1_500_000) {
+        localStorage.setItem(payloadKey, payloadStr);
+      }
+    } catch {
+      // ignore payload cache failure
+    }
   }
 
-  // Tier 1: Save recents list directly
+  // Tier 1: Save full recents list directly
   try {
     localStorage.setItem(storageKey, JSON.stringify(dataList));
     localStorage.setItem(`${ACTIVE_REPO_KEY}_${storageKey}`, activeId);
     return;
-  } catch (quotaErr) {
-    console.warn("LocalStorage limit reached. Preserving metadata recents list...", quotaErr);
+  } catch {
+    // Quota reached, proceed to degradation tiers
   }
 
-  // Tier 2: Metadata list for older recents (active repo keeps full files; recents rely on Supabase/re-fetch)
+  // Tier 2: Strip code from non-active repositories (active repo keeps full files)
   try {
     const metadataList = dataList.map((item) => {
       if (item.id === activeId) return item;
       return {
         ...item,
-        files: item.files.map((f) => ({ path: f.path, code: "" })),
+        files: (item.files || []).map((f) => ({ path: f.path, code: "" })),
       };
     });
     localStorage.setItem(storageKey, JSON.stringify(metadataList));
     localStorage.setItem(`${ACTIVE_REPO_KEY}_${storageKey}`, activeId);
-  } catch (err) {
-    console.warn("Unable to save recents to LocalStorage due to browser storage policy.", err);
+    return;
+  } catch {
+    // Quota still exceeded, purge payload cache and degrade further
+    cleanOldPayloadCaches();
+  }
+
+  // Tier 3: Pure metadata list (file paths with empty code strings for ALL repos)
+  try {
+    const pureMetadataList = dataList.map((item) => ({
+      ...item,
+      files: (item.files || []).map((f) => ({ path: f.path, code: "" })),
+    }));
+    localStorage.setItem(storageKey, JSON.stringify(pureMetadataList));
+    localStorage.setItem(`${ACTIVE_REPO_KEY}_${storageKey}`, activeId);
+    return;
+  } catch {
+    // Quota still exceeded, fall back to minimal descriptor
+  }
+
+  // Tier 4: Minimal list without files array (preserves fileCount, repo ID, name, githubUrl, timestamp)
+  try {
+    const minimalList = dataList.map((item) => ({
+      ...item,
+      files: [],
+    }));
+    localStorage.setItem(storageKey, JSON.stringify(minimalList));
+    localStorage.setItem(`${ACTIVE_REPO_KEY}_${storageKey}`, activeId);
+  } catch (finalErr) {
+    console.warn("Unable to save recents to LocalStorage due to browser storage policy.", finalErr);
   }
 }
 
@@ -353,6 +414,11 @@ export function removeRecentRepo(
   const filtered = existing.filter((item) => item.id !== id);
 
   safeSetLocalStorage(storageKey, filtered, "");
+  try {
+    localStorage.removeItem(`cartofy_full_payload_${storageKey}_${id}`);
+  } catch {
+    // ignore
+  }
 
   if (activeUser) {
     deleteUserRepoFromSupabase(activeUser, id).catch((e) =>
