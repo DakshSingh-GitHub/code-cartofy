@@ -369,12 +369,24 @@ export function Sidebar({
                   >
                     <div className="flex items-center justify-between border-b border-zinc-800/80 pb-1.5">
                       <span className="text-red-400 font-semibold">Cycle #{idx + 1}</span>
-                      <button
-                        onClick={() => onSpotlightCycle(cycle)}
-                        className="text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded border border-zinc-700 transition-all"
-                      >
-                        Spotlight
-                      </button>
+                      {(() => {
+                        const isSpotlighted =
+                          spotlightCycleNodes &&
+                          spotlightCycleNodes.length === cycle.length &&
+                          spotlightCycleNodes.every((n, i) => n === cycle[i]);
+                        return (
+                          <button
+                            onClick={() => onSpotlightCycle(isSpotlighted ? null : cycle)}
+                            className={`text-[10px] px-2 py-0.5 rounded border transition-all ${
+                              isSpotlighted
+                                ? "bg-red-900/80 text-white border-red-700"
+                                : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700"
+                            }`}
+                          >
+                            {isSpotlighted ? "Clear" : "Spotlight"}
+                          </button>
+                        );
+                      })()}
                     </div>
 
                     <div className="space-y-1 text-zinc-300 text-[11px]">

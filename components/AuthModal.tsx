@@ -33,7 +33,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, redirectOnSuccess }: Aut
     onClose();
     if (onSuccess) onSuccess();
     if (redirectOnSuccess) {
-      router.push(redirectOnSuccess);
+      window.location.href = redirectOnSuccess;
     } else {
       router.refresh();
     }
@@ -47,7 +47,7 @@ export function AuthModal({ isOpen, onClose, onSuccess, redirectOnSuccess }: Aut
     onClose();
     if (onSuccess) onSuccess();
     if (redirectOnSuccess) {
-      router.push(redirectOnSuccess);
+      window.location.href = redirectOnSuccess;
     } else {
       router.refresh();
     }

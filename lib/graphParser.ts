@@ -245,7 +245,7 @@ export function getShortLabel(filePath: string): string {
 
   if (isGenericRouteFile && parts.length > 0) {
     // Extract route/folder path relative to root/app/pages
-    let routeParts = [...parts];
+    const routeParts = [...parts];
     if (routeParts[0] === "src") routeParts.shift();
     if (
       routeParts[0] === "app" ||

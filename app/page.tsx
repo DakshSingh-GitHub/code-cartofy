@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { SAMPLE_REPOSITORIES } from "@/lib/sampleRepositories";
 import { getClientSession, logoutUser, UserSession } from "@/lib/auth";
 import { AuthModal } from "@/components/AuthModal";
@@ -14,7 +13,6 @@ import {
   Cpu,
   ShieldAlert,
   Zap,
-  UserCheck,
   LogOut,
   LogIn,
 } from "lucide-react";
@@ -29,27 +27,28 @@ function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function LandingPage() {
-  const router = useRouter();
   const [githubUrl, setGithubUrl] = useState("");
   const [session, setSession] = useState<UserSession | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   useEffect(() => {
-    setSession(getClientSession());
+    const updateSession = () => setSession(getClientSession());
+    updateSession();
+    window.addEventListener("cartofy_session_change", updateSession);
+    return () => window.removeEventListener("cartofy_session_change", updateSession);
   }, []);
 
   const handleQuickGitHubSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (githubUrl.trim()) {
       const clean = githubUrl.replace(/^https?:\/\/github\.com\//, "").trim();
-      router.push(`/cartofy?github=${encodeURIComponent(clean)}`);
+      window.location.href = `/cartofy?github=${encodeURIComponent(clean)}`;
     }
   };
 
   const handleLogout = async () => {
     await logoutUser();
     setSession(null);
-    router.refresh();
   };
 
   return (

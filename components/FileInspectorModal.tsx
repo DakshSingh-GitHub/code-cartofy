@@ -17,17 +17,15 @@ export function FileInspectorModal({
   files,
   selectedFileId,
 }: FileInspectorModalProps) {
-  const [activeFilePath, setActiveFilePath] = useState<string>("");
+  const [activeFilePath, setActiveFilePath] = useState<string>(selectedFileId || (files[0]?.path || ""));
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState(false);
+  const [prevSelectedFileId, setPrevSelectedFileId] = useState<string | null>(selectedFileId || null);
 
-  useEffect(() => {
-    if (selectedFileId) {
-      setActiveFilePath(selectedFileId);
-    } else if (files.length > 0) {
-      setActiveFilePath(files[0].path);
-    }
-  }, [selectedFileId, files]);
+  if (selectedFileId && selectedFileId !== prevSelectedFileId) {
+    setPrevSelectedFileId(selectedFileId);
+    setActiveFilePath(selectedFileId);
+  }
 
   if (!isOpen) return null;
 

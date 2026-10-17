@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { FileInput } from "./types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
@@ -45,8 +46,21 @@ export async function checkUsernameAvailability(username: string): Promise<{ ava
     return { available: false, error: "Username cannot be empty" };
   }
 
-  // If Supabase is not configured yet, pretend it's available for local preview
+  // If Supabase is not configured yet, check local mock users
   if (!isSupabaseConfigured()) {
+    if (typeof window !== "undefined") {
+      try {
+        const localUsers = JSON.parse(localStorage.getItem("cartofy_local_users") || "[]");
+        const exists = localUsers.some(
+          (u: { username?: string }) => (u.username || "").toLowerCase() === cleanUsername
+        );
+        if (exists) {
+          return { available: false, error: "Username is already taken" };
+        }
+      } catch {
+        // ignore
+      }
+    }
     return { available: true };
   }
 
@@ -84,15 +98,43 @@ export async function checkUsernameAvailability(username: string): Promise<{ ava
  */
 export async function registerWithSupabase(params: RegisterParams): Promise<AuthResult> {
   if (!isSupabaseConfigured()) {
-    // Simulated successful auth for local development when keys aren't set
+    // Simulated successful auth with local storage for local development
+    const newUser = {
+      id: `usr_${Date.now()}`,
+      email: params.email.trim(),
+      fullName: params.fullName.trim(),
+      username: params.username.trim(),
+      country: params.country,
+      password: params.password,
+    };
+
+    if (typeof window !== "undefined") {
+      try {
+        const localUsers = JSON.parse(localStorage.getItem("cartofy_local_users") || "[]");
+        // Check if username or email already taken
+        const exists = localUsers.some(
+          (u: { username?: string; email?: string }) =>
+            (u.username || "").toLowerCase() === newUser.username.toLowerCase() ||
+            (u.email || "").toLowerCase() === newUser.email.toLowerCase()
+        );
+        if (exists) {
+          return { success: false, error: "Username or email is already registered." };
+        }
+        localUsers.push(newUser);
+        localStorage.setItem("cartofy_local_users", JSON.stringify(localUsers));
+      } catch {
+        // ignore
+      }
+    }
+
     return {
       success: true,
       user: {
-        id: `usr_${Date.now()}`,
-        email: params.email,
-        fullName: params.fullName,
-        username: params.username,
-        country: params.country,
+        id: newUser.id,
+        email: newUser.email,
+        fullName: newUser.fullName,
+        username: newUser.username,
+        country: newUser.country,
       },
     };
   }
@@ -138,7 +180,37 @@ export async function registerWithSupabase(params: RegisterParams): Promise<Auth
  * Log in with Supabase (supports either Email or Username)
  */
 export async function loginWithSupabase(identifier: string, password: string): Promise<AuthResult> {
+  const cleanId = identifier.trim().toLowerCase();
+
   if (!isSupabaseConfigured()) {
+    if (typeof window !== "undefined") {
+      try {
+        const localUsers = JSON.parse(localStorage.getItem("cartofy_local_users") || "[]");
+        const matched = localUsers.find(
+          (u: { username?: string; email?: string }) =>
+            (u.username || "").toLowerCase() === cleanId ||
+            (u.email || "").toLowerCase() === cleanId
+        );
+        if (matched) {
+          if (matched.password && matched.password !== password) {
+            return { success: false, error: "Incorrect password. Please try again." };
+          }
+          return {
+            success: true,
+            user: {
+              id: matched.id,
+              email: matched.email,
+              fullName: matched.fullName || matched.username,
+              username: matched.username,
+              country: matched.country || "Global",
+            },
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     return {
       success: true,
       user: {
@@ -207,7 +279,7 @@ export interface SupabaseUserRepo {
   repo_name: string;
   type: "github" | "upload" | "sample";
   github_url?: string;
-  files: any[];
+  files: FileInput[];
   file_count: number;
   timestamp: number;
 }
@@ -222,7 +294,7 @@ export async function saveUserRepoToSupabase(
     name: string;
     type: "github" | "upload" | "sample";
     githubUrl?: string;
-    files: any[];
+    files: FileInput[];
     timestamp: number;
     fileCount?: number;
   }

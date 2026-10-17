@@ -70,7 +70,7 @@ export function GraphCanvas({
     });
 
     let nodes = Array.from(uniqueNodesMap.values());
-    let links = [...graphData.links];
+    const links = [...graphData.links];
 
     if (showCyclesOnly) {
       nodes = nodes.filter((n) => n.isCircular);

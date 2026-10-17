@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     const response = NextResponse.json({ success: true, user: body });
     response.cookies.set({
       name: "cartofy_session",
-      value: encodeURIComponent(sessionData),
+      value: sessionData,
       path: "/",
       httpOnly: false,
       maxAge: 60 * 60 * 24 * 7, // 7 days

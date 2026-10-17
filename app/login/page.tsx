@@ -189,7 +189,7 @@ function LoginContent() {
       });
 
       setLoading(false);
-      router.push(redirectPath);
+      window.location.href = redirectPath;
     } else {
       // Mode: Login
       if (!loginIdentifier.trim()) {
@@ -219,7 +219,7 @@ function LoginContent() {
       });
 
       setLoading(false);
-      router.push(redirectPath);
+      window.location.href = redirectPath;
     }
   };
 
@@ -275,7 +275,7 @@ function LoginContent() {
 
     setLoading(false);
     setShowVlyxirModal(false);
-    router.push(redirectPath);
+    window.location.href = redirectPath;
   };
 
   // Guest Bypass
@@ -283,7 +283,7 @@ function LoginContent() {
     setLoading(true);
     await loginUser("guest@cartofy.io", "Guest Developer", true);
     setLoading(false);
-    router.push(redirectPath);
+    window.location.href = redirectPath;
   };
 
   return (

@@ -130,11 +130,10 @@ export async function loginWithVlyxirDatabase(
   }
 
   try {
-    const isEmail = cleanIdentifier.includes("@");
     let emailToUse = cleanIdentifier;
 
     // 1. If identifier is username, lookup profile from Vlyxir profiles table
-    const { data: profileData, error: profileErr } = await vlyxirSupabase
+    const { data: profileData } = await vlyxirSupabase
       .from("profiles")
       .select("*")
       .or(`email.ilike.${cleanIdentifier},username.ilike.${cleanIdentifier}`)

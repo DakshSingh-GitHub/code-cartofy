@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   GitFork,
   FolderUp,
@@ -19,7 +18,6 @@ import {
   Sparkles,
   ShoppingBag,
   Palette,
-  UserCheck,
   LogOut,
   Lock,
   Clock,
@@ -75,19 +73,24 @@ export function Navbar({
   onDirectoryUpload,
   isParsing,
 }: NavbarProps) {
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [session, setSession] = useState<UserSession | null>(null);
 
   useEffect(() => {
-    setSession(getClientSession());
+    const updateSession = () => {
+      setSession(getClientSession());
+    };
+    updateSession();
+
+    window.addEventListener("cartofy_session_change", updateSession);
+    return () => window.removeEventListener("cartofy_session_change", updateSession);
   }, []);
 
   const handleLogout = async () => {
     await logoutUser();
-    router.push("/");
+    window.location.href = "/";
   };
 
   // Close dropdown on click outside
