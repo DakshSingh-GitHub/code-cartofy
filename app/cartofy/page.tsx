@@ -25,6 +25,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { GitHubModal } from "@/components/GitHubModal";
 import { FileInspectorModal } from "@/components/FileInspectorModal";
 import { ExportModal } from "@/components/ExportModal";
+import { ParsingLoadingScreen } from "@/components/ParsingLoadingScreen";
 import {
   UploadCloud,
   Loader2,
@@ -137,6 +138,7 @@ function CartofyWorkspaceContent() {
         });
     } else if (isDemo) {
       // In Demo Mode: load preloaded sample repository
+      setIsParsing(true);
       const foundSample = SAMPLE_REPOSITORIES.find((r) => r.id === repoQuery) || SAMPLE_REPOSITORIES[0];
       setCurrentRepoId(foundSample.id);
       setCurrentRepoName(foundSample.name);
@@ -151,16 +153,19 @@ function CartofyWorkspaceContent() {
         files: foundSample.files,
       });
       setRecentRepos(updatedRecents);
+      setTimeout(() => setIsParsing(false), 450);
     } else if (repoQuery) {
       // Normal workspace: check if it matches a stored user repository
       const stored = getStoredRepoById(repoQuery, activeSession);
       if (stored && stored.type !== "sample") {
+        setIsParsing(true);
         setCurrentRepoId(stored.id);
         setCurrentRepoName(stored.name);
         setCurrentRepoType(stored.type);
         setCurrentGithubUrl(stored.githubUrl);
         ensureFullRepoFiles(stored, activeSession).then((files: FileInput[]) => {
           if (files && files.length > 0) setCurrentFiles(files);
+          setTimeout(() => setIsParsing(false), 450);
         });
       } else {
         // If query is a sample repo but not in demo mode, redirect to demo mode
@@ -174,12 +179,14 @@ function CartofyWorkspaceContent() {
       const recents = getRecentRepos(activeSession);
       if (recents.length > 0) {
         const latest = recents[0];
+        setIsParsing(true);
         setCurrentRepoId(latest.id);
         setCurrentRepoName(latest.name);
         setCurrentRepoType(latest.type);
         setCurrentGithubUrl(latest.githubUrl);
         ensureFullRepoFiles(latest, activeSession).then((files: FileInput[]) => {
           if (files && files.length > 0) setCurrentFiles(files);
+          setTimeout(() => setIsParsing(false), 450);
         });
       } else {
         // No repository active: leave empty to show clean workspace prompt
@@ -228,7 +235,7 @@ function CartofyWorkspaceContent() {
       router.push(`/cartofy`, { scroll: false });
     }
 
-    setTimeout(() => setIsParsing(false), 200);
+    setTimeout(() => setIsParsing(false), 450);
   };
 
   // Handle switching pre-loaded sample repositories
@@ -254,7 +261,7 @@ function CartofyWorkspaceContent() {
       setRecentRepos(updatedRecents);
 
       router.push(`/cartofy?repo=${id}`, { scroll: false });
-      setTimeout(() => setIsParsing(false), 200);
+      setTimeout(() => setIsParsing(false), 450);
     }
   };
 
@@ -504,6 +511,11 @@ function CartofyWorkspaceContent() {
 
       {/* Main Workspace Chassis (Canvas & Sidebar) */}
       <div className="flex-1 flex overflow-hidden relative">
+        {/* Full-screen Claymorphic AST Parsing Loading Overlay */}
+        {isParsing && (
+          <ParsingLoadingScreen repoName={currentRepoName || repoQuery || (githubQuery ? "GitHub Repository" : "Repository")} />
+        )}
+
         {/* Floating Demo Mode Badge */}
         {isDemoMode && (
           <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 rounded-full clay-pill-tag shadow-xl text-xs text-zinc-300 pointer-events-auto max-w-[90vw]">
@@ -659,9 +671,16 @@ export default function CartofyWorkspacePage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen w-screen bg-[#0c0e12] flex items-center justify-center text-zinc-400 text-xs font-mono gap-2.5">
-          <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
-          <span>Loading CodeCartofy Graph Workspace...</span>
+        <div className="h-screen w-screen bg-[#0c0e12] flex items-center justify-center p-6 select-none font-sans">
+          <div className="clay-container-deep border border-white/10 rounded-3xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <div className="w-14 h-14 rounded-2xl bg-[#1b212c] border border-white/10 flex items-center justify-center mx-auto text-zinc-100 shadow-inner">
+              <Loader2 className="w-7 h-7 animate-spin text-zinc-300" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-white tracking-tight">Initializing Workspace</h3>
+              <p className="text-xs text-zinc-400 font-mono">Loading CodeCartofy Graph Engine...</p>
+            </div>
+          </div>
         </div>
       }
     >
