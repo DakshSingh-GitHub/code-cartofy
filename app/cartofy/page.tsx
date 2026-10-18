@@ -14,6 +14,7 @@ import {
   ensureFullRepoFiles,
   StoredRepo,
   formatRepoTitle,
+  getUserAiFixHistory,
 } from "@/lib/storage";
 import { getClientSession, UserSession } from "@/lib/auth";
 import { FileInput, GraphData, GraphNode, SinglePointOfFailure, AiFixRecord } from "@/lib/types";
@@ -53,6 +54,7 @@ function CartofyWorkspaceContent() {
   const repoQuery = searchParams.get("repo");
   const githubQuery = searchParams.get("github");
   const demoQuery = searchParams.get("demo");
+  const fixIdQuery = searchParams.get("fixId");
 
   // User session state
   const [session, setSession] = useState<UserSession | null>(null);
@@ -436,6 +438,26 @@ function CartofyWorkspaceContent() {
     setIsSpofModalOpen(true);
   };
 
+  // Auto-open modal if fixId is in URL query parameters (e.g. from Dashboard inspect)
+  useEffect(() => {
+    if (!fixIdQuery) return;
+    const active = getClientSession();
+    getUserAiFixHistory(active).then((fixes) => {
+      const match = fixes.find((f) => f.id === fixIdQuery);
+      if (match) {
+        const synthSpof: SinglePointOfFailure = {
+          nodeId: match.targetFile,
+          label: match.title,
+          reason: match.summary,
+          dependentCount: 1,
+          type: "module",
+          riskLevel: match.riskLevel === "Low" ? "Medium" : match.riskLevel,
+        };
+        handleOpenSpofModal(synthSpof, [match.targetFile], match);
+      }
+    });
+  }, [fixIdQuery]);
+
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -714,6 +736,10 @@ function CartofyWorkspaceContent() {
         githubUrl={currentGithubUrl}
         repoId={currentRepoId || currentRepoName}
         initialFixRecord={selectedFixRecord}
+        onPlanCreated={(record) => {
+          setSelectedFixRecord(record);
+          setIsSpofModalOpen(true);
+        }}
       />
     </div>
   );

@@ -24,6 +24,7 @@ import {
   Trash2,
   GitPullRequest,
   Check,
+  ClipboardList,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -952,6 +953,11 @@ export function Sidebar({
                             <GitPullRequest className="w-3 h-3 text-emerald-400" />
                             <span>#{fix.githubIssueNumber}</span>
                           </span>
+                        ) : fix.fixType === "plan" ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 shrink-0">
+                            <ClipboardList className="w-3 h-3 text-sky-400" />
+                            <span>Plan</span>
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0">
                             <Sparkles className="w-3 h-3 text-purple-400" />
@@ -985,8 +991,17 @@ export function Sidebar({
                               }}
                               className="px-2.5 py-1 rounded-xl clay-button-white text-zinc-950 text-[10px] font-bold flex items-center gap-1 shadow-sm hover:scale-102 active:scale-95 transition-all cursor-pointer"
                             >
-                              <Sparkles className="w-3 h-3 text-zinc-950" />
-                              <span>Review Fix</span>
+                              {fix.fixType === "plan" ? (
+                                <>
+                                  <ClipboardList className="w-3 h-3 text-zinc-950" />
+                                  <span>Review Plan</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-3 h-3 text-zinc-950" />
+                                  <span>Review Fix</span>
+                                </>
+                              )}
                             </button>
                           )}
 

@@ -81,7 +81,7 @@ export interface AiFixRecord {
   userEmail?: string;
   repoId: string;
   repoName: string;
-  fixType: "spof" | "cycle" | "recommendation" | "architecture";
+  fixType: "spof" | "cycle" | "recommendation" | "architecture" | "plan";
   targetFile: string;
   riskLevel: "Critical" | "High" | "Medium" | "Low";
   title: string;
@@ -93,6 +93,8 @@ export interface AiFixRecord {
     description: string;
     codeSnippet: string;
   }[];
+  dos?: string[];
+  donts?: string[];
   githubIssueUrl?: string;
   githubIssueNumber?: number;
   timestamp: number;

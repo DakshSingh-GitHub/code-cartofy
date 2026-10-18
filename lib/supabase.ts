@@ -668,6 +668,15 @@ export async function saveAiFixToSupabase(
   if (!isSupabaseConfigured()) return { success: true };
 
   try {
+    const proposedModulesToSave = [...(record.proposedModules || [])];
+    if ((record.dos && record.dos.length > 0) || (record.donts && record.donts.length > 0)) {
+      proposedModulesToSave.push({
+        path: "__METADATA_DOS_DONTS__",
+        description: JSON.stringify({ dos: record.dos || [], donts: record.donts || [] }),
+        codeSnippet: "",
+      });
+    }
+
     const payload = {
       id: record.id,
       user_id: record.userId,
@@ -682,7 +691,7 @@ export async function saveAiFixToSupabase(
       summary: record.summary,
       architectural_pattern: record.architecturalPattern || null,
       refactoring_plan: record.refactoringPlan,
-      proposed_modules: record.proposedModules || [],
+      proposed_modules: proposedModulesToSave,
       github_issue_url: record.githubIssueUrl || null,
       github_issue_number: record.githubIssueNumber || null,
       timestamp: record.timestamp || Date.now(),
@@ -734,25 +743,46 @@ export async function fetchUserAiFixesFromSupabase(
       return [];
     }
 
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      userId: row.user_id,
-      username: row.username,
-      userEmail: row.user_email,
-      repoId: row.repo_id,
-      repoName: row.repo_name,
-      fixType: row.fix_type,
-      targetFile: row.target_file,
-      riskLevel: row.risk_level,
-      title: row.title,
-      summary: row.summary,
-      architecturalPattern: row.architectural_pattern,
-      refactoringPlan: Array.isArray(row.refactoring_plan) ? row.refactoring_plan : [],
-      proposedModules: Array.isArray(row.proposed_modules) ? row.proposed_modules : [],
-      githubIssueUrl: row.github_issue_url,
-      githubIssueNumber: row.github_issue_number,
-      timestamp: row.timestamp,
-    }));
+    return (data || []).map((row: any) => {
+      let dos: string[] | undefined = undefined;
+      let donts: string[] | undefined = undefined;
+      const rawProposed = Array.isArray(row.proposed_modules) ? row.proposed_modules : [];
+      const cleanProposed = rawProposed.filter((mod: any) => {
+        if (mod && mod.path === "__METADATA_DOS_DONTS__") {
+          try {
+            const parsed = JSON.parse(mod.description);
+            if (Array.isArray(parsed.dos)) dos = parsed.dos;
+            if (Array.isArray(parsed.donts)) donts = parsed.donts;
+          } catch {
+            // ignore
+          }
+          return false;
+        }
+        return true;
+      });
+
+      return {
+        id: row.id,
+        userId: row.user_id,
+        username: row.username,
+        userEmail: row.user_email,
+        repoId: row.repo_id,
+        repoName: row.repo_name,
+        fixType: row.fix_type,
+        targetFile: row.target_file,
+        riskLevel: row.risk_level,
+        title: row.title,
+        summary: row.summary,
+        architecturalPattern: row.architectural_pattern,
+        refactoringPlan: Array.isArray(row.refactoring_plan) ? row.refactoring_plan : [],
+        proposedModules: cleanProposed,
+        dos,
+        donts,
+        githubIssueUrl: row.github_issue_url,
+        githubIssueNumber: row.github_issue_number,
+        timestamp: row.timestamp,
+      };
+    });
   } catch (err: unknown) {
     console.error("Failed to fetch user AI fixes from Supabase:", err);
     return [];

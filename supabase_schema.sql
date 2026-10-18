@@ -246,7 +246,7 @@ CREATE TABLE IF NOT EXISTS public.user_ai_fixes (
     user_email TEXT,                               -- App user email
     repo_id TEXT NOT NULL,                         -- Target repository ID
     repo_name TEXT NOT NULL,                       -- Target repository name
-    fix_type TEXT NOT NULL,                        -- 'spof' | 'cycle' | 'recommendation' | 'architecture'
+    fix_type TEXT NOT NULL,                        -- 'spof' | 'cycle' | 'recommendation' | 'architecture' | 'plan'
     target_file TEXT NOT NULL,                     -- File/module path
     risk_level TEXT DEFAULT 'High',                -- 'Critical' | 'High' | 'Medium' | 'Low'
     title TEXT NOT NULL,                           -- Fix title or issue title

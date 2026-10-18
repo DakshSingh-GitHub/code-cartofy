@@ -25,6 +25,7 @@ import {
   deleteAiFixFromHistory,
 } from "@/lib/storage";
 import { AiFixRecord } from "@/lib/types";
+import { SpofFixModal } from "@/components/SpofFixModal";
 import {
   saveUserGithubConnection,
   fetchUserGithubConnection,
@@ -55,6 +56,7 @@ import {
   ChevronRight,
   SlidersHorizontal,
   GitPullRequest,
+  ClipboardList,
 } from "lucide-react";
 
 function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -142,6 +144,7 @@ function DashboardContent() {
   const [aiFixes, setAiFixes] = useState<AiFixRecord[]>([]);
   const [deletingFixId, setDeletingFixId] = useState<string | null>(null);
   const [issuesFilter, setIssuesFilter] = useState<"all" | "issues_only" | "plans_only">("all");
+  const [selectedReviewFix, setSelectedReviewFix] = useState<AiFixRecord | null>(null);
 
   // Load active session, recent analyses, persistent database GitHub connection, and global AI fixes
   useEffect(() => {
@@ -209,13 +212,17 @@ function DashboardContent() {
       return aiFixes.filter((f) => Boolean(f.githubIssueUrl && f.githubIssueNumber));
     }
     if (issuesFilter === "plans_only") {
-      return aiFixes.filter((f) => !f.githubIssueNumber);
+      return aiFixes.filter((f) => f.fixType === "plan" || !f.githubIssueNumber);
     }
     return aiFixes;
   }, [aiFixes, issuesFilter]);
 
   const raisedIssuesCount = useMemo(() => {
     return aiFixes.filter((f) => Boolean(f.githubIssueUrl && f.githubIssueNumber)).length;
+  }, [aiFixes]);
+
+  const plansCount = useMemo(() => {
+    return aiFixes.filter((f) => f.fixType === "plan" || !f.githubIssueNumber).length;
   }, [aiFixes]);
 
   // When session has githubUsername, auto-fetch public repositories
@@ -762,7 +769,7 @@ function DashboardContent() {
                     : "text-zinc-400 hover:text-zinc-200"
                 }`}
               >
-                Plans ({aiFixes.length - raisedIssuesCount})
+                Plans ({plansCount})
               </button>
             </div>
           </div>
@@ -802,7 +809,8 @@ function DashboardContent() {
                 return (
                   <div
                     key={fix.id}
-                    className="clay-card-raised p-5 rounded-2xl flex flex-col justify-between group space-y-3 relative hover:border-purple-500/30 transition-all"
+                    onClick={() => setSelectedReviewFix(fix)}
+                    className="clay-card-raised p-5 rounded-2xl flex flex-col justify-between group space-y-3 relative hover:border-sky-500/40 transition-all cursor-pointer shadow-md hover:shadow-xl hover:-translate-y-0.5"
                   >
                     {/* Top row: Repo badge + Issue pill + Delete */}
                     <div>
@@ -828,6 +836,11 @@ function DashboardContent() {
                               <span>#{fix.githubIssueNumber}</span>
                               <ExternalLink className="w-2.5 h-2.5 opacity-70" />
                             </a>
+                          ) : fix.fixType === "plan" ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center gap-1">
+                              <ClipboardList className="w-2.5 h-2.5 text-sky-400" />
+                              <span>Plan</span>
+                            </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase font-semibold bg-zinc-800 text-zinc-400 border border-white/5">
                               Plan
@@ -862,6 +875,14 @@ function DashboardContent() {
                         </div>
                       )}
 
+                      {fix.dos && fix.dos.length > 0 && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                            ✓ Do&apos;s &amp; Don&apos;ts included
+                          </span>
+                        </div>
+                      )}
+
                       {/* Summary */}
                       <p className="text-[11px] text-zinc-400 mt-2 line-clamp-2 leading-relaxed">
                         {fix.summary}
@@ -884,13 +905,43 @@ function DashboardContent() {
                         {new Date(fix.timestamp).toLocaleDateString()}
                       </span>
 
-                      <button
-                        onClick={() => router.push(`/cartofy?repo=${encodeURIComponent(fix.repoId || fix.repoName)}`)}
-                        className="text-zinc-300 hover:text-white flex items-center gap-1 group-hover:translate-x-0.5 transition-all text-[11px]"
-                      >
-                        <span>Inspect in Cartofy</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedReviewFix(fix);
+                          }}
+                          className="px-2.5 py-1 rounded-xl clay-button-white text-zinc-950 text-[10px] font-bold flex items-center gap-1 shadow-sm hover:scale-102 active:scale-95 transition-all cursor-pointer"
+                        >
+                          {fix.fixType === "plan" ? (
+                            <>
+                              <ClipboardList className="w-3 h-3 text-zinc-950" />
+                              <span>Review Plan</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3 h-3 text-zinc-950" />
+                              <span>Review Fix</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(
+                              `/cartofy?repo=${encodeURIComponent(
+                                fix.repoId || fix.repoName
+                              )}&fixId=${encodeURIComponent(fix.id)}`
+                            );
+                          }}
+                          className="text-zinc-400 hover:text-white flex items-center gap-1 transition-all text-[11px] p-1"
+                          title="Inspect in Cartofy Workspace"
+                        >
+                          <span className="hidden sm:inline">Workspace</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1259,6 +1310,33 @@ function DashboardContent() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Review Modal for Issues and Plans directly from Dashboard */}
+      {selectedReviewFix && (
+        <SpofFixModal
+          key={`dashboard_review_${selectedReviewFix.id}`}
+          isOpen={Boolean(selectedReviewFix)}
+          onClose={() => setSelectedReviewFix(null)}
+          spofNode={{
+            nodeId: selectedReviewFix.targetFile,
+            label: selectedReviewFix.title,
+            reason: selectedReviewFix.summary,
+            dependentCount: 1,
+            type: "module",
+            riskLevel:
+              selectedReviewFix.riskLevel === "Low"
+                ? "Medium"
+                : selectedReviewFix.riskLevel,
+          }}
+          dependentNodes={[selectedReviewFix.targetFile]}
+          currentFiles={[]}
+          repoName={selectedReviewFix.repoName}
+          githubUrl={""}
+          repoId={selectedReviewFix.repoId || selectedReviewFix.repoName}
+          initialFixRecord={selectedReviewFix}
+          onPlanCreated={(record) => setSelectedReviewFix(record)}
+        />
       )}
     </div>
   );
