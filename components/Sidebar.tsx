@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { GraphData, GraphNode, CopilotReport } from "@/lib/types";
+import { GraphData, GraphNode, CopilotReport, SinglePointOfFailure, AiFixRecord } from "@/lib/types";
 import { generateArchitecturalCopilotReport } from "@/lib/aiCopilot";
 import { getShortLabel } from "@/lib/graphParser";
+import { getUserAiFixHistory, deleteAiFixFromHistory } from "@/lib/storage";
 import {
   Info,
   AlertTriangle,
@@ -18,6 +19,11 @@ import {
   X,
   Layers,
   ChevronRight,
+  History,
+  ExternalLink,
+  Trash2,
+  GitPullRequest,
+  Check,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -29,6 +35,11 @@ interface SidebarProps {
   spotlightCycleNodes: string[] | null;
   onSpotlightCycle: (nodes: string[] | null) => void;
   onOpenInspectorModalWithFile: (fileId: string) => void;
+  onOpenSpofModal?: (
+    spof: SinglePointOfFailure | GraphNode,
+    dependents: GraphNode[] | string[],
+    fixRecord?: AiFixRecord | null
+  ) => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
 }
@@ -42,19 +53,61 @@ export function Sidebar({
   spotlightCycleNodes,
   onSpotlightCycle,
   onOpenInspectorModalWithFile,
+  onOpenSpofModal,
   isMobileOpen = false,
   onCloseMobile,
 }: SidebarProps) {
-  const [activeTab, setActiveTab] = useState<"inspector" | "cycles" | "copilot" | "controls">(
+  const [activeTab, setActiveTab] = useState<"inspector" | "cycles" | "copilot" | "controls" | "history">(
     selectedNode ? "inspector" : "copilot"
   );
+  const [fixHistory, setFixHistory] = useState<AiFixRecord[]>([]);
+  const [deletingFixId, setDeletingFixId] = useState<string | null>(null);
 
   // Switch to inspector when a node is explicitly selected
+  const [prevSelectedNodeId, setPrevSelectedNodeId] = useState<string | null>(null);
+  if (selectedNode && selectedNode.id !== prevSelectedNodeId) {
+    setPrevSelectedNodeId(selectedNode.id);
+    setActiveTab("inspector");
+  }
+
+  // Load and subscribe to AI fix history for the active user
   useEffect(() => {
-    if (selectedNode) {
-      setActiveTab("inspector");
+    let isCancelled = false;
+    getUserAiFixHistory()
+      .then((records) => {
+        if (!isCancelled) setFixHistory(records);
+      })
+      .catch((err) => console.warn("Failed to retrieve user AI fixes:", err));
+
+    const handleHistoryUpdate = () => {
+      getUserAiFixHistory()
+        .then((records) => {
+          if (!isCancelled) setFixHistory(records);
+        })
+        .catch((err) => console.warn("Failed to retrieve user AI fixes:", err));
+    };
+
+    window.addEventListener("cartofy_aifix_change", handleHistoryUpdate);
+    window.addEventListener("storage", handleHistoryUpdate);
+    return () => {
+      isCancelled = true;
+      window.removeEventListener("cartofy_aifix_change", handleHistoryUpdate);
+      window.removeEventListener("storage", handleHistoryUpdate);
+    };
+  }, []);
+
+  const handleDeleteFix = async (fixId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setDeletingFixId(fixId);
+      const remaining = await deleteAiFixFromHistory(fixId);
+      setFixHistory(remaining);
+    } catch (err) {
+      console.warn("Failed to delete AI fix:", err);
+    } finally {
+      setDeletingFixId(null);
     }
-  }, [selectedNode]);
+  };
 
   // Generate AI Copilot analysis report
   const copilotReport: CopilotReport = React.useMemo(() => {
@@ -172,10 +225,28 @@ export function Sidebar({
             )}
           </button>
 
-          {/* Tab 4: Metrics */}
+          {/* Tab 4: History */}
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-1.5 text-xs font-medium rounded-xl transition-all cursor-pointer relative ${
+              activeTab === "history"
+                ? "clay-card-raised text-white border-white/10 shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+            }`}
+          >
+            <History className="w-3.5 h-3.5 text-zinc-300" />
+            <span className="truncate">History</span>
+            {fixHistory.length > 0 && (
+              <span className="min-w-[15px] h-[15px] px-1 rounded-full bg-purple-500/80 text-[9px] font-mono font-bold text-white flex items-center justify-center absolute -top-1 -right-1 border border-purple-400/50 shadow-sm">
+                {fixHistory.length}
+              </span>
+            )}
+          </button>
+
+          {/* Tab 5: Metrics */}
           <button
             onClick={() => setActiveTab("controls")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-1.5 text-xs font-medium rounded-xl transition-all cursor-pointer ${
               activeTab === "controls"
                 ? "clay-card-raised text-white border-white/10 shadow-sm"
                 : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
@@ -242,26 +313,55 @@ export function Sidebar({
                 </div>
 
                 <div className="space-y-2">
-                  {copilotReport.singlePointsOfFailure.map((spof) => (
-                    <div
-                      key={spof.nodeId}
-                      onClick={() => {
-                        const n = graphData.nodes.find((item) => item.id === spof.nodeId);
-                        if (n) onSelectNode(n);
-                      }}
-                      className="clay-card-raised rounded-2xl p-3.5 cursor-pointer hover:border-white/15 transition-all space-y-1.5 group"
-                    >
-                      <div className="flex items-center justify-between text-xs font-mono">
-                        <span className="text-zinc-100 font-semibold group-hover:text-white truncate">
-                          {spof.label}
-                        </span>
-                        <span className="text-[10px] text-red-300 font-semibold px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/60 shrink-0">
-                          {spof.dependentCount} Dependents
-                        </span>
+                  {copilotReport.singlePointsOfFailure.map((spof) => {
+                    const spofDependents = graphData.links
+                      .filter((link) => {
+                        const tgtId = typeof link.target === "string" ? link.target : (link.target as any).id;
+                        return tgtId === spof.nodeId;
+                      })
+                      .map((link) => {
+                        const srcId = typeof link.source === "string" ? link.source : (link.source as any).id;
+                        return graphData.nodes.find((n) => n.id === srcId);
+                      })
+                      .filter(Boolean) as GraphNode[];
+
+                    return (
+                      <div
+                        key={spof.nodeId}
+                        onClick={() => {
+                          const n = graphData.nodes.find((item) => item.id === spof.nodeId);
+                          if (n) onSelectNode(n);
+                        }}
+                        className="clay-card-raised rounded-2xl p-3.5 cursor-pointer hover:border-white/15 transition-all space-y-2 group"
+                      >
+                        <div className="flex items-center justify-between text-xs font-mono">
+                          <span className="text-zinc-100 font-semibold group-hover:text-white truncate max-w-[170px]">
+                            {spof.label}
+                          </span>
+                          <span className="text-[10px] text-red-300 font-semibold px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/60 shrink-0">
+                            {spof.dependentCount} Dependents
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">{spof.reason}</p>
+                        
+                        {onOpenSpofModal && (
+                          <div className="pt-1 flex items-center justify-between border-t border-white/5">
+                            <span className="text-[10px] text-zinc-500 font-mono">Blast Radius: High</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenSpofModal(spof, spofDependents);
+                              }}
+                              className="px-2.5 py-1 rounded-xl clay-button-white text-zinc-950 text-[10px] font-bold flex items-center gap-1 shadow-sm hover:scale-102 active:scale-95 transition-all cursor-pointer"
+                            >
+                              <Sparkles className="w-3 h-3 text-zinc-950" />
+                              <span>AI Fix & Issue</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">{spof.reason}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -294,6 +394,37 @@ export function Sidebar({
                       </span>
                     </div>
                     <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">{rec.description}</p>
+                    {rec.priority === "High" && onOpenSpofModal && (
+                      <div className="pt-2 flex items-center justify-between border-t border-white/5">
+                        <span className="text-[10px] text-red-300 font-mono font-medium">Critical Advisory</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const targetNode = graphData.nodes.find((n) =>
+                              rec.title.toLowerCase().includes(n.label.toLowerCase()) ||
+                              rec.description.toLowerCase().includes(n.label.toLowerCase()) ||
+                              rec.description.includes(n.id)
+                            ) || graphData.nodes[0];
+
+                            if (targetNode) {
+                              const synthSpof: SinglePointOfFailure = {
+                                nodeId: targetNode.id,
+                                label: rec.title,
+                                reason: rec.description,
+                                dependentCount: targetNode.inDegree || 1,
+                                type: targetNode.type,
+                                riskLevel: rec.priority === "High" ? "High" : "Medium",
+                              };
+                              onOpenSpofModal(synthSpof, [targetNode]);
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-xl clay-button-white text-zinc-950 text-[10px] font-bold flex items-center gap-1 shadow-sm hover:scale-102 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3 text-zinc-950" />
+                          <span>AI Fix Recommendation</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -355,6 +486,16 @@ export function Sidebar({
                     >
                       <FileCode className="w-3.5 h-3.5" />
                       <span>View Source Code</span>
+                    </button>
+                  )}
+
+                  {onOpenSpofModal && selectedNode.inDegree >= 2 && (
+                    <button
+                      onClick={() => onOpenSpofModal(selectedNode, dependentNodes)}
+                      className="w-full py-2 px-3 rounded-xl clay-pill-tag hover:bg-[#1a202c] text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer text-amber-300 border border-amber-500/20 shadow-sm transition-all"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>AI Decouple & GitHub Issue</span>
                     </button>
                   )}
                 </div>
@@ -484,7 +625,30 @@ export function Sidebar({
                     className="clay-card-raised rounded-2xl p-3.5 space-y-2.5 text-xs font-mono"
                   >
                     <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                      <span className="text-red-400 font-bold">Cycle #{idx + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-400 font-bold">Cycle #{idx + 1}</span>
+                        {onOpenSpofModal && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const firstNodeId = cycle[0];
+                              const synthSpof: SinglePointOfFailure = {
+                                nodeId: firstNodeId,
+                                label: `Cycle: ${cycle.map(getShortLabel).join(" → ")}`,
+                                reason: `Circular dependency loop detected between ${cycle.length} modules (${cycle.join(" -> ")}). AI Decoupler will propose refactoring patterns to invert dependencies and extract shared contracts.`,
+                                dependentCount: cycle.length - 1,
+                                type: "module",
+                                riskLevel: "High",
+                              };
+                              onOpenSpofModal(synthSpof, cycle);
+                            }}
+                            className="px-2 py-0.5 rounded-lg clay-button-white text-zinc-950 text-[10px] font-bold flex items-center gap-1 shadow-sm hover:scale-102 active:scale-95 transition-all cursor-pointer"
+                          >
+                            <Sparkles className="w-2.5 h-2.5 text-zinc-950" />
+                            <span>AI Decouple</span>
+                          </button>
+                        )}
+                      </div>
                       {(() => {
                         const isSpotlighted =
                           spotlightCycleNodes &&
@@ -596,6 +760,146 @@ export function Sidebar({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB 5: AI FIX & SCAN HISTORY */}
+        {activeTab === "history" && (
+          <div className="space-y-4 font-sans">
+            {/* History Banner */}
+            <div className="clay-card-raised rounded-2xl p-4 border-purple-500/20 bg-[#140f1a] flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-purple-950/80 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                  <History className="w-4 h-4 text-purple-400" />
+                </div>
+                <div className="truncate">
+                  <h4 className="text-xs font-bold text-purple-200">AI Fix History</h4>
+                  <p className="text-[11px] text-zinc-400 font-mono">
+                    {fixHistory.length} scan & fix record{fixHistory.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-[10px] font-mono px-2.5 py-1 rounded-xl bg-purple-500/10 text-purple-300 border border-purple-500/20 font-semibold shrink-0">
+                User Isolated
+              </span>
+            </div>
+
+            {fixHistory.length === 0 ? (
+              <div className="clay-card-raised rounded-2xl text-center py-10 px-6 space-y-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-400 shadow-inner">
+                  <Sparkles className="w-5 h-5 text-purple-400" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-semibold text-white">No AI Fixes Recorded Yet</h4>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed max-w-[240px] mx-auto">
+                    Run an AI fix on any Single Point of Failure, Circular Cycle, or High Priority Advisory. Your refactoring plans and raised GitHub issues will automatically persist here.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {fixHistory.map((fix) => {
+                  const hasIssue = Boolean(fix.githubIssueUrl && fix.githubIssueNumber);
+                  const isDeleting = deletingFixId === fix.id;
+                  const dateStr = fix.timestamp
+                    ? new Date(fix.timestamp).toLocaleString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Recent";
+
+                  return (
+                    <div
+                      key={fix.id}
+                      className="clay-card-raised rounded-2xl p-3.5 space-y-2.5 text-xs transition-all hover:border-white/15"
+                    >
+                      {/* Top Header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-white truncate max-w-[200px]" title={fix.title}>
+                            {fix.title}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-400 font-mono">
+                            <span className="truncate max-w-[120px]">{fix.repoName}</span>
+                            <span>•</span>
+                            <span>{dateStr}</span>
+                          </div>
+                        </div>
+
+                        {hasIssue ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                            <GitPullRequest className="w-3 h-3 text-emerald-400" />
+                            <span>#{fix.githubIssueNumber}</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0">
+                            <Sparkles className="w-3 h-3 text-purple-400" />
+                            <span>Fix Plan</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Reason Snippet */}
+                      {fix.summary && (
+                        <p className="text-[11px] text-zinc-400 line-clamp-2 leading-relaxed font-sans">
+                          {fix.summary}
+                        </p>
+                      )}
+
+                      {/* Action Bar */}
+                      <div className="pt-2 flex items-center justify-between border-t border-white/5">
+                        <div className="flex items-center gap-1.5">
+                          {onOpenSpofModal && (
+                            <button
+                              onClick={() => {
+                                const synthSpof: SinglePointOfFailure = {
+                                  nodeId: fix.targetFile,
+                                  label: fix.title,
+                                  reason: fix.summary,
+                                  dependentCount: 1,
+                                  type: "module",
+                                  riskLevel: fix.riskLevel === "Low" ? "Medium" : fix.riskLevel,
+                                };
+                                onOpenSpofModal(synthSpof, [fix.targetFile], fix);
+                              }}
+                              className="px-2.5 py-1 rounded-xl clay-button-white text-zinc-950 text-[10px] font-bold flex items-center gap-1 shadow-sm hover:scale-102 active:scale-95 transition-all cursor-pointer"
+                            >
+                              <Sparkles className="w-3 h-3 text-zinc-950" />
+                              <span>Review Fix</span>
+                            </button>
+                          )}
+
+                          {hasIssue && fix.githubIssueUrl && (
+                            <a
+                              href={fix.githubIssueUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-1 rounded-xl clay-pill-tag text-zinc-300 hover:text-white text-[10px] font-medium flex items-center gap-1 transition-all"
+                            >
+                              <span>Issue</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={(e) => handleDeleteFix(fix.id, e)}
+                          disabled={isDeleting}
+                          className="w-6 h-6 rounded-lg clay-pill-tag flex items-center justify-center text-zinc-500 hover:text-red-400 transition-all cursor-pointer disabled:opacity-50"
+                          title="Delete from history"
+                          aria-label="Delete fix record"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

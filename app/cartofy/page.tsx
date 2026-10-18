@@ -16,7 +16,7 @@ import {
   formatRepoTitle,
 } from "@/lib/storage";
 import { getClientSession, UserSession } from "@/lib/auth";
-import { FileInput, GraphData, GraphNode } from "@/lib/types";
+import { FileInput, GraphData, GraphNode, SinglePointOfFailure, AiFixRecord } from "@/lib/types";
 
 import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
@@ -25,6 +25,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { GitHubModal } from "@/components/GitHubModal";
 import { FileInspectorModal } from "@/components/FileInspectorModal";
 import { ExportModal } from "@/components/ExportModal";
+import { SpofFixModal } from "@/components/SpofFixModal";
 import { ParsingLoadingScreen } from "@/components/ParsingLoadingScreen";
 import {
   UploadCloud,
@@ -86,6 +87,10 @@ function CartofyWorkspaceContent() {
   const [isInspectorModalOpen, setIsInspectorModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [inspectorFileId, setInspectorFileId] = useState<string | null>(null);
+  const [isSpofModalOpen, setIsSpofModalOpen] = useState(false);
+  const [selectedSpof, setSelectedSpof] = useState<SinglePointOfFailure | GraphNode | null>(null);
+  const [spofDependents, setSpofDependents] = useState<GraphNode[]>([]);
+  const [selectedFixRecord, setSelectedFixRecord] = useState<AiFixRecord | null>(null);
 
   // Drag and drop overlay state
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -403,6 +408,34 @@ function CartofyWorkspaceContent() {
     setIsInspectorModalOpen(true);
   };
 
+  // Open Single Point of Failure (SPOF) / Architecture AI Decoupler modal
+  const handleOpenSpofModal = (
+    spof: SinglePointOfFailure | GraphNode,
+    dependents: GraphNode[] | string[],
+    fixRecord?: AiFixRecord | null
+  ) => {
+    setSelectedSpof(spof);
+    const resolvedDeps: GraphNode[] = (dependents || []).map((dep) => {
+      if (typeof dep === "string") {
+        return (
+          graphData.nodes.find((n) => n.id === dep) || {
+            id: dep,
+            label: dep.split("/").pop() || dep,
+            type: "utility" as const,
+            size: 10,
+            inDegree: 1,
+            outDegree: 0,
+            lineCount: 10,
+          }
+        );
+      }
+      return dep;
+    });
+    setSpofDependents(resolvedDeps);
+    setSelectedFixRecord(fixRecord || null);
+    setIsSpofModalOpen(true);
+  };
+
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -606,6 +639,7 @@ function CartofyWorkspaceContent() {
           spotlightCycleNodes={spotlightCycleNodes}
           onSpotlightCycle={setSpotlightCycleNodes}
           onOpenInspectorModalWithFile={handleOpenInspectorWithFile}
+          onOpenSpofModal={handleOpenSpofModal}
           isMobileOpen={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
@@ -662,6 +696,22 @@ function CartofyWorkspaceContent() {
         onClose={() => setIsExportModalOpen(false)}
         graphData={graphData}
         repoName={currentRepoName}
+      />
+
+      <SpofFixModal
+        key={`spof_${selectedSpof ? ("nodeId" in selectedSpof ? selectedSpof.nodeId : selectedSpof.id) : "none"}_${selectedFixRecord?.id || "fresh"}`}
+        isOpen={isSpofModalOpen}
+        onClose={() => {
+          setIsSpofModalOpen(false);
+          setSelectedFixRecord(null);
+        }}
+        spofNode={selectedSpof}
+        dependentNodes={spofDependents}
+        currentFiles={currentFiles}
+        repoName={currentRepoName}
+        githubUrl={currentGithubUrl}
+        repoId={currentRepoId || currentRepoName}
+        initialFixRecord={selectedFixRecord}
       />
     </div>
   );

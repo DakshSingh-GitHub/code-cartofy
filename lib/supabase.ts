@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { FileInput } from "./types";
+import { FileInput, AiFixRecord } from "./types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
@@ -658,6 +658,119 @@ export async function deleteUserGithubConnection(user: {
     }
   }
 }
+
+/**
+ * Save an AI architectural fix record to Supabase `user_ai_fixes` table
+ */
+export async function saveAiFixToSupabase(
+  record: AiFixRecord
+): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { success: true };
+
+  try {
+    const payload = {
+      id: record.id,
+      user_id: record.userId,
+      username: record.username || record.userId,
+      user_email: record.userEmail || "",
+      repo_id: record.repoId,
+      repo_name: record.repoName,
+      fix_type: record.fixType,
+      target_file: record.targetFile,
+      risk_level: record.riskLevel,
+      title: record.title,
+      summary: record.summary,
+      architectural_pattern: record.architecturalPattern || null,
+      refactoring_plan: record.refactoringPlan,
+      proposed_modules: record.proposedModules || [],
+      github_issue_url: record.githubIssueUrl || null,
+      github_issue_number: record.githubIssueNumber || null,
+      timestamp: record.timestamp || Date.now(),
+      created_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("user_ai_fixes")
+      .upsert(payload, { onConflict: "id" });
+
+    if (error) {
+      console.warn("Supabase AI fix upsert error:", error.message);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to save AI fix to Supabase";
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Fetch a user's AI fix history from Supabase `user_ai_fixes`
+ */
+export async function fetchUserAiFixesFromSupabase(
+  user: { id?: string; username?: string; email?: string },
+  repoId?: string
+): Promise<AiFixRecord[]> {
+  if (!isSupabaseConfigured()) return [];
+
+  const userId = user.username || user.id || user.email || "guest";
+
+  try {
+    let query = supabase
+      .from("user_ai_fixes")
+      .select("*")
+      .or(`user_id.eq.${userId},username.eq.${user.username || userId}`)
+      .order("timestamp", { ascending: false });
+
+    if (repoId) {
+      query = query.eq("repo_id", repoId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.warn("Supabase AI fixes query warning:", error.message);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      userId: row.user_id,
+      username: row.username,
+      userEmail: row.user_email,
+      repoId: row.repo_id,
+      repoName: row.repo_name,
+      fixType: row.fix_type,
+      targetFile: row.target_file,
+      riskLevel: row.risk_level,
+      title: row.title,
+      summary: row.summary,
+      architecturalPattern: row.architectural_pattern,
+      refactoringPlan: Array.isArray(row.refactoring_plan) ? row.refactoring_plan : [],
+      proposedModules: Array.isArray(row.proposed_modules) ? row.proposed_modules : [],
+      githubIssueUrl: row.github_issue_url,
+      githubIssueNumber: row.github_issue_number,
+      timestamp: row.timestamp,
+    }));
+  } catch (err: unknown) {
+    console.error("Failed to fetch user AI fixes from Supabase:", err);
+    return [];
+  }
+}
+
+/**
+ * Delete an AI fix from Supabase `user_ai_fixes`
+ */
+export async function deleteUserAiFixFromSupabase(fixId: string): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  try {
+    await supabase.from("user_ai_fixes").delete().eq("id", fixId);
+  } catch (err) {
+    console.error("Failed to delete AI fix from Supabase:", err);
+  }
+}
+
 
 
 

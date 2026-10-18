@@ -1,4 +1,4 @@
-import { FileInput } from "./types";
+import { FileInput, AiFixRecord } from "./types";
 import { UserSession, getClientSession } from "./auth";
 import { SAMPLE_REPOSITORIES } from "./sampleRepositories";
 import { fetchGitHubRepository } from "./githubFetcher";
@@ -6,6 +6,9 @@ import {
   saveUserRepoToSupabase,
   fetchUserReposFromSupabase,
   deleteUserRepoFromSupabase,
+  saveAiFixToSupabase,
+  fetchUserAiFixesFromSupabase,
+  deleteUserAiFixFromSupabase,
 } from "./supabase";
 
 export interface StoredRepo {
@@ -487,3 +490,150 @@ export function clearAllRecents(user?: UserSession | null): void {
     console.error("Failed to clear recents:", err);
   }
 }
+
+/**
+ * AI Fixes Storage Key prefix for account isolation
+ */
+const AI_FIXES_STORAGE_PREFIX = "cartofy_ai_fixes_";
+
+/**
+ * Save an AI architectural fix to account-scoped localStorage AND sync to Supabase
+ */
+export async function saveAiFixToHistory(
+  record: AiFixRecord,
+  user?: UserSession | null
+): Promise<AiFixRecord[]> {
+  const activeUser = user !== undefined ? user : getClientSession();
+  const storageKey = getStorageKeyForUser(activeUser);
+  const localKey = `${AI_FIXES_STORAGE_PREFIX}${storageKey}`;
+
+  let existing: AiFixRecord[] = [];
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(localKey);
+      if (raw) existing = JSON.parse(raw);
+    } catch {
+      existing = [];
+    }
+  }
+
+  // Deduplicate and insert at top
+  const filtered = existing.filter((f) => f.id !== record.id);
+  const updated = [record, ...filtered].slice(0, 50); // Keep up to 50 latest fixes
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(localKey, JSON.stringify(updated));
+      window.dispatchEvent(new Event("cartofy_aifix_change"));
+    } catch (err) {
+      console.warn("Failed to save AI fix to localStorage:", err);
+    }
+  }
+
+  // Asynchronously sync to Supabase
+  if (activeUser) {
+    saveAiFixToSupabase(record).catch((err) =>
+      console.warn("Supabase AI fix sync error:", err)
+    );
+  }
+
+  return updated;
+}
+
+/**
+ * Get AI architectural fix history for the active user account (merges Supabase + LocalStorage)
+ */
+export async function getUserAiFixHistory(
+  user?: UserSession | null,
+  repoId?: string
+): Promise<AiFixRecord[]> {
+  const activeUser = user !== undefined ? user : getClientSession();
+  const storageKey = getStorageKeyForUser(activeUser);
+  const localKey = `${AI_FIXES_STORAGE_PREFIX}${storageKey}`;
+
+  let localFixes: AiFixRecord[] = [];
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(localKey);
+      if (raw) localFixes = JSON.parse(raw);
+    } catch {
+      localFixes = [];
+    }
+  }
+
+  // Try syncing from Supabase
+  if (activeUser) {
+    try {
+      const remoteFixes = await fetchUserAiFixesFromSupabase(activeUser, repoId);
+      if (remoteFixes && remoteFixes.length > 0) {
+        const mergedMap = new Map<string, AiFixRecord>();
+        localFixes.forEach((f) => mergedMap.set(f.id, f));
+        remoteFixes.forEach((f) => {
+          if (!mergedMap.has(f.id) || (f.timestamp > (mergedMap.get(f.id)?.timestamp || 0))) {
+            mergedMap.set(f.id, f);
+          }
+        });
+
+        const combined = Array.from(mergedMap.values()).sort(
+          (a, b) => (b.timestamp || 0) - (a.timestamp || 0)
+        );
+
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(localKey, JSON.stringify(combined.slice(0, 50)));
+          } catch {
+            // ignore
+          }
+        }
+
+        return repoId ? combined.filter((f) => f.repoId === repoId) : combined;
+      }
+    } catch (err) {
+      console.warn("Error fetching AI fixes from Supabase:", err);
+    }
+  }
+
+  return repoId ? localFixes.filter((f) => f.repoId === repoId) : localFixes;
+}
+
+/**
+ * Delete an AI fix from history and Supabase
+ */
+export async function deleteAiFixFromHistory(
+  fixId: string,
+  user?: UserSession | null
+): Promise<AiFixRecord[]> {
+  const activeUser = user !== undefined ? user : getClientSession();
+  const storageKey = getStorageKeyForUser(activeUser);
+  const localKey = `${AI_FIXES_STORAGE_PREFIX}${storageKey}`;
+
+  let existing: AiFixRecord[] = [];
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(localKey);
+      if (raw) existing = JSON.parse(raw);
+    } catch {
+      existing = [];
+    }
+  }
+
+  const updated = existing.filter((f) => f.id !== fixId);
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(localKey, JSON.stringify(updated));
+      window.dispatchEvent(new Event("cartofy_aifix_change"));
+    } catch {
+      // ignore
+    }
+  }
+
+  if (activeUser) {
+    deleteUserAiFixFromSupabase(fixId).catch((e) =>
+      console.warn("Failed to delete AI fix from Supabase:", e)
+    );
+  }
+
+  return updated;
+}
+

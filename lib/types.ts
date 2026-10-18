@@ -73,3 +73,28 @@ export interface RepoSample {
   category: string;
   files: FileInput[];
 }
+
+export interface AiFixRecord {
+  id: string;
+  userId: string;
+  username?: string;
+  userEmail?: string;
+  repoId: string;
+  repoName: string;
+  fixType: "spof" | "cycle" | "recommendation" | "architecture";
+  targetFile: string;
+  riskLevel: "Critical" | "High" | "Medium" | "Low";
+  title: string;
+  summary: string;
+  architecturalPattern?: string;
+  refactoringPlan: string[];
+  proposedModules?: {
+    path: string;
+    description: string;
+    codeSnippet: string;
+  }[];
+  githubIssueUrl?: string;
+  githubIssueNumber?: number;
+  timestamp: number;
+}
+
