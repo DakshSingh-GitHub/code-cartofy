@@ -18,6 +18,44 @@ export interface StoredRepo {
   fileCount: number;
 }
 
+/**
+ * Formats a repository name into just the repository title.
+ * Removes "GitHub: ", "github: ", URLs, and "username/" prefix.
+ * e.g. "GitHub: DakshSingh-GitHub/portfolio" -> "portfolio"
+ * e.g. "DakshSingh-GitHub/portfolio" -> "portfolio"
+ * e.g. "https://github.com/facebook/react" -> "react"
+ */
+export function formatRepoTitle(name: string): string {
+  if (!name) return "";
+  let cleaned = name.replace(/^github:\s*/i, "").trim();
+  cleaned = cleaned.replace(/^https?:\/\/github\.com\//i, "").replace(/^github\.com\//i, "");
+  if (cleaned.includes("/")) {
+    const parts = cleaned.split("/").filter(Boolean);
+    if (parts.length > 0) {
+      cleaned = parts[parts.length - 1];
+    }
+  }
+  return cleaned;
+}
+
+/**
+ * Extracts the owner/username from a repository name if available.
+ * e.g. "GitHub: DakshSingh-GitHub/portfolio" -> "DakshSingh-GitHub"
+ * e.g. "DakshSingh-GitHub/portfolio" -> "DakshSingh-GitHub"
+ */
+export function getRepoOwner(name: string): string | null {
+  if (!name) return null;
+  let cleaned = name.replace(/^github:\s*/i, "").trim();
+  cleaned = cleaned.replace(/^https?:\/\/github\.com\//i, "").replace(/^github\.com\//i, "");
+  if (cleaned.includes("/")) {
+    const parts = cleaned.split("/").filter(Boolean);
+    if (parts.length > 1) {
+      return parts[0];
+    }
+  }
+  return null;
+}
+
 const DEFAULT_STORAGE_KEY = "cartofy_recent_repos";
 const ACTIVE_REPO_KEY = "cartofy_active_repo_id";
 const MAX_RECENTS = 10;

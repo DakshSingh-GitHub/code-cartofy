@@ -13,6 +13,7 @@ import {
   syncUserReposWithSupabase,
   ensureFullRepoFiles,
   StoredRepo,
+  formatRepoTitle,
 } from "@/lib/storage";
 import { getClientSession, UserSession } from "@/lib/auth";
 import { FileInput, GraphData, GraphNode } from "@/lib/types";
@@ -24,7 +25,15 @@ import { Sidebar } from "@/components/Sidebar";
 import { GitHubModal } from "@/components/GitHubModal";
 import { FileInspectorModal } from "@/components/FileInspectorModal";
 import { ExportModal } from "@/components/ExportModal";
-import { UploadCloud, Loader2, GitFork, ArrowRight, Sparkles } from "lucide-react";
+import {
+  UploadCloud,
+  Loader2,
+  GitFork,
+  ArrowRight,
+  Sparkles,
+  Sliders,
+  AlertTriangle,
+} from "lucide-react";
 
 function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -67,6 +76,9 @@ function CartofyWorkspaceContent() {
   const [showCyclesOnly, setShowCyclesOnly] = useState<boolean>(false);
   const [spotlightCycleNodes, setSpotlightCycleNodes] = useState<string[] | null>(null);
   const [isParsing, setIsParsing] = useState<boolean>(false);
+
+  // Mobile sidebar drawer state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Modals state
   const [isGithubModalOpen, setIsGithubModalOpen] = useState(false);
@@ -458,12 +470,14 @@ function CartofyWorkspaceContent() {
     }
   };
 
+  const hasCycles = (graphData.circularLoops.length || 0) > 0;
+
   return (
     <div
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className="h-screen w-screen flex flex-col bg-black text-zinc-100 overflow-hidden relative font-sans select-none"
+      className="h-screen w-screen flex flex-col bg-[#0c0e12] text-zinc-100 overflow-hidden relative font-sans select-none"
     >
       {/* Top Navbar */}
       <Navbar
@@ -488,56 +502,56 @@ function CartofyWorkspaceContent() {
         isParsing={isParsing}
       />
 
-      {/* Main Canvas & Sidebar Workspace */}
+      {/* Main Workspace Chassis (Canvas & Sidebar) */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Floating Demo Mode Badge */}
         {isDemoMode && (
-          <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-zinc-950/90 border border-emerald-500/30 backdrop-blur-md shadow-xl text-xs text-zinc-300 pointer-events-auto">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Demo Mode</span>
-            <span className="text-zinc-600">•</span>
-            <span className="font-semibold text-white truncate max-w-[200px]">{currentRepoName}</span>
+          <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 rounded-full clay-pill-tag shadow-xl text-xs text-zinc-300 pointer-events-auto max-w-[90vw]">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase tracking-wider shrink-0">Demo</span>
+            <span className="text-zinc-600 hidden sm:inline">•</span>
+            <span className="font-semibold text-white truncate max-w-[140px] sm:max-w-[220px]">{formatRepoTitle(currentRepoName)}</span>
             <span className="text-zinc-600">|</span>
             <Link
               href="/dashboard"
-              className="text-[11px] font-mono text-zinc-400 hover:text-white transition-colors underline underline-offset-2"
+              className="text-[11px] font-mono text-zinc-400 hover:text-white transition-colors underline underline-offset-2 shrink-0"
             >
-              Exit Demo
+              Exit
             </Link>
           </div>
         )}
 
         {/* Empty Workspace State when non-demo user has no repository loaded */}
         {!isDemoMode && currentFiles.length === 0 && !isParsing ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/90 p-6 pointer-events-auto">
-            <div className="max-w-md w-full p-8 rounded-2xl bg-zinc-950 border border-zinc-800 text-center space-y-6 shadow-2xl">
-              <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-300 shadow-sm">
-                <GitFork className="w-6 h-6 transform rotate-90 text-indigo-400" />
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0c0e12]/90 backdrop-blur-sm p-4 sm:p-6 pointer-events-auto">
+            <div className="max-w-md w-full p-6 sm:p-8 rounded-3xl clay-container-deep border border-white/10 text-center space-y-6 shadow-2xl">
+              <div className="w-14 h-14 rounded-2xl bg-[#1a202c] border border-white/10 flex items-center justify-center mx-auto text-zinc-200 shadow-inner">
+                <GitFork className="w-6 h-6 transform rotate-90 text-zinc-200" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-white">No Active Repository Loaded</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  Select a repository from your dashboard, import a public GitHub URL, or launch Demo Mode to test-drive sample codebases.
+                <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight">No Active Repository Loaded</h3>
+                <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed max-w-sm mx-auto">
+                  Select a repository from your dashboard, import a public GitHub repository, or explore pre-loaded codebases in Demo Mode.
                 </p>
               </div>
-              <div className="flex flex-col gap-2.5 pt-2">
+              <div className="flex flex-col gap-2.5 pt-2 font-sans">
                 <Link
                   href="/dashboard"
-                  className="w-full py-2.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 clay-button-white text-zinc-950 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                 >
                   <span>Open Dashboard</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
                 <button
                   onClick={() => setIsGithubModalOpen(true)}
-                  className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-200 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-2.5 clay-pill-tag hover:bg-[#1a202c] text-zinc-200 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <GitHubIcon className="w-3.5 h-3.5" />
                   <span>Import GitHub Repository</span>
                 </button>
                 <Link
                   href="/cartofy?demo=true"
-                  className="w-full py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+                  className="w-full py-2.5 clay-pill-tag hover:bg-[#1a202c] text-emerald-400 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Explore in Demo Mode</span>
@@ -561,7 +575,16 @@ function CartofyWorkspaceContent() {
           />
         </div>
 
-        {/* Sidebar Panel */}
+        {/* Mobile Backdrop for Sidebar Drawer */}
+        {isMobileSidebarOpen && (
+          <div
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="fixed inset-0 bg-black/70 backdrop-blur-xs z-30 lg:hidden animate-fadeIn"
+            aria-label="Dismiss sidebar drawer"
+          />
+        )}
+
+        {/* Sidebar Panel (Docked on Desktop, Slide-over Drawer on Mobile) */}
         <Sidebar
           graphData={graphData}
           selectedNode={selectedNode}
@@ -571,17 +594,40 @@ function CartofyWorkspaceContent() {
           spotlightCycleNodes={spotlightCycleNodes}
           onSpotlightCycle={setSpotlightCycleNodes}
           onOpenInspectorModalWithFile={handleOpenInspectorWithFile}
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
+
+        {/* Mobile Floating Trigger Button for Sidebar (< lg screens) */}
+        <button
+          onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+          className="fixed bottom-5 right-5 lg:hidden z-30 clay-button-white px-3.5 py-2.5 rounded-full flex items-center gap-2 text-xs font-bold text-zinc-950 shadow-2xl cursor-pointer"
+          aria-label="Toggle inspector drawer"
+        >
+          {hasCycles ? (
+            <AlertTriangle className="w-4 h-4 text-red-600 animate-pulse" />
+          ) : (
+            <Sliders className="w-4 h-4 text-zinc-900" />
+          )}
+          <span>Inspector & Copilot</span>
+          {hasCycles && (
+            <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+          )}
+        </button>
       </div>
 
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center border-2 border-dashed border-zinc-600 m-4 rounded-lg">
-          <UploadCloud className="w-12 h-12 text-zinc-400 mb-3 animate-bounce" />
-          <h2 className="text-lg font-semibold text-white">Drop Codebase Folder Here</h2>
-          <p className="text-xs font-mono text-zinc-400 mt-1">
-            AST parser will recursively scan JS/TS modules & map imports
-          </p>
+        <div className="fixed inset-0 bg-[#0c0e12]/95 z-50 flex items-center justify-center p-6">
+          <div className="clay-container-deep border-2 border-dashed border-zinc-500 rounded-3xl p-8 sm:p-12 max-w-lg w-full text-center space-y-4 shadow-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-[#1b212c] border border-white/10 flex items-center justify-center mx-auto text-zinc-200 shadow-inner">
+              <UploadCloud className="w-8 h-8 text-zinc-300 animate-bounce" />
+            </div>
+            <h2 className="text-xl font-bold text-white tracking-tight">Drop Codebase Folder Here</h2>
+            <p className="text-xs font-mono text-zinc-400 max-w-sm mx-auto leading-relaxed">
+              AST parser will recursively scan JS/TS modules & map import dependency vectors in real time.
+            </p>
+          </div>
         </div>
       )}
 
@@ -613,7 +659,7 @@ export default function CartofyWorkspacePage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen w-screen bg-black flex items-center justify-center text-zinc-400 text-xs font-mono gap-2">
+        <div className="h-screen w-screen bg-[#0c0e12] flex items-center justify-center text-zinc-400 text-xs font-mono gap-2.5">
           <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
           <span>Loading CodeCartofy Graph Workspace...</span>
         </div>

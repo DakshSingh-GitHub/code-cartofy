@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { GraphData, GraphNode, CopilotReport } from "@/lib/types";
 import { generateArchitecturalCopilotReport } from "@/lib/aiCopilot";
 import { getShortLabel } from "@/lib/graphParser";
@@ -15,6 +15,9 @@ import {
   CheckCircle2,
   Zap,
   ShieldAlert,
+  X,
+  Layers,
+  ChevronRight,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -26,6 +29,8 @@ interface SidebarProps {
   spotlightCycleNodes: string[] | null;
   onSpotlightCycle: (nodes: string[] | null) => void;
   onOpenInspectorModalWithFile: (fileId: string) => void;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export function Sidebar({
@@ -37,17 +42,26 @@ export function Sidebar({
   spotlightCycleNodes,
   onSpotlightCycle,
   onOpenInspectorModalWithFile,
+  isMobileOpen = false,
+  onCloseMobile,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<"inspector" | "cycles" | "copilot" | "controls">(
     selectedNode ? "inspector" : "copilot"
   );
+
+  // Switch to inspector when a node is explicitly selected
+  useEffect(() => {
+    if (selectedNode) {
+      setActiveTab("inspector");
+    }
+  }, [selectedNode]);
 
   // Generate AI Copilot analysis report
   const copilotReport: CopilotReport = React.useMemo(() => {
     return generateArchitecturalCopilotReport(graphData);
   }, [graphData]);
 
-  // Inbound Dependents
+  // Inbound Dependents (imported by other files)
   const dependentNodes = React.useMemo(() => {
     if (!selectedNode) return [];
     return graphData.links
@@ -62,7 +76,7 @@ export function Sidebar({
       .filter(Boolean) as GraphNode[];
   }, [selectedNode, graphData]);
 
-  // Outbound Dependencies
+  // Outbound Dependencies (imports)
   const importedNodes = React.useMemo(() => {
     if (!selectedNode) return [];
     return graphData.links
@@ -80,181 +94,264 @@ export function Sidebar({
   const hasCycles = graphData.circularLoops.length > 0;
 
   return (
-    <aside className="w-80 lg:w-96 border-l border-zinc-800 bg-zinc-950 h-[calc(100vh-3.5rem)] flex flex-col z-20 shrink-0 font-sans">
-      {/* Tabs */}
-      <div className="flex items-center border-b border-zinc-800 p-1 bg-zinc-950">
-        <button
-          onClick={() => setActiveTab("copilot")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-all ${
-            activeTab === "copilot"
-              ? "bg-zinc-800 text-zinc-100"
-              : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
-          }`}
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Copilot</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("inspector")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-all ${
-            activeTab === "inspector"
-              ? "bg-zinc-800 text-zinc-100"
-              : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
-          }`}
-        >
-          <Info className="w-3.5 h-3.5" />
-          <span>Inspector</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab("cycles")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-all relative ${
-            activeTab === "cycles"
-              ? "bg-red-950/60 text-red-300 border border-red-900/60"
-              : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
-          }`}
-        >
-          <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-          <span>Cycles</span>
-          {hasCycles && (
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 absolute top-1.5 right-1.5" />
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab("controls")}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-all ${
-            activeTab === "controls"
-              ? "bg-zinc-800 text-zinc-100"
-              : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
-          }`}
-        >
-          <Sliders className="w-3.5 h-3.5" />
-          <span>Metrics</span>
-        </button>
+    <aside
+      className={`
+        fixed lg:static inset-y-0 right-0 z-40 lg:z-20
+        w-80 sm:w-96 lg:w-96 xl:w-[410px] 2xl:w-[440px]
+        border-l border-white/5 bg-[#0e1117] h-full
+        flex flex-col shrink-0 font-sans select-none
+        transition-transform duration-300 ease-in-out
+        shadow-[-12px_0_36px_rgba(0,0,0,0.65)] lg:shadow-none
+        ${isMobileOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"}
+      `}
+    >
+      {/* Mobile Drawer Header */}
+      <div className="lg:hidden h-12 px-4 border-b border-white/5 flex items-center justify-between shrink-0 bg-[#0c0e12]">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-[#181d26] border border-white/5 flex items-center justify-center text-zinc-300">
+            <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
+          </div>
+          <span className="text-xs font-semibold text-white tracking-tight">Inspector & Copilot</span>
+        </div>
+        {onCloseMobile && (
+          <button
+            onClick={onCloseMobile}
+            className="w-7 h-7 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
+            aria-label="Close sidebar"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* TAB 1: COPILOT */}
+      {/* Chunky Tactile Tabs Navigation Bar */}
+      <div className="p-2 sm:p-2.5 border-b border-white/5 bg-[#0c0e12]">
+        <div className="clay-recessed-input p-1 rounded-2xl flex items-center gap-1">
+          {/* Tab 1: Copilot */}
+          <button
+            onClick={() => setActiveTab("copilot")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer ${
+              activeTab === "copilot"
+                ? "clay-card-raised text-white border-white/10 shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
+            <span className="truncate">Copilot</span>
+          </button>
+
+          {/* Tab 2: Inspector */}
+          <button
+            onClick={() => setActiveTab("inspector")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer relative ${
+              activeTab === "inspector"
+                ? "clay-card-raised text-white border-white/10 shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+            }`}
+          >
+            <Info className="w-3.5 h-3.5" />
+            <span className="truncate">Inspector</span>
+            {selectedNode && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute top-1.5 right-1.5" />
+            )}
+          </button>
+
+          {/* Tab 3: Cycles */}
+          <button
+            onClick={() => setActiveTab("cycles")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer relative ${
+              activeTab === "cycles"
+                ? "bg-[#241214] text-red-300 border border-red-500/30 shadow-sm font-semibold"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+            <span className="truncate">Cycles</span>
+            {hasCycles && (
+              <span className="w-2 h-2 rounded-full bg-red-500 absolute top-1.5 right-1.5 animate-pulse" />
+            )}
+          </button>
+
+          {/* Tab 4: Metrics */}
+          <button
+            onClick={() => setActiveTab("controls")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer ${
+              activeTab === "controls"
+                ? "clay-card-raised text-white border-white/10 shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span className="truncate">Metrics</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Panels Content */}
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
+        {/* TAB 1: COPILOT ARCHITECTURAL INTELLIGENCE */}
         {activeTab === "copilot" && (
           <div className="space-y-4">
-            <div className="p-4 rounded-lg bg-zinc-900/60 border border-zinc-800 space-y-3">
+            {/* Architecture Audit Health Card */}
+            <div className="clay-card-raised rounded-2xl p-4 space-y-3.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-medium text-zinc-200">
-                  <Sparkles className="w-3.5 h-3.5 text-zinc-400" />
+                <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                  <div className="w-6 h-6 rounded-lg bg-[#1b212c] border border-white/5 flex items-center justify-center text-zinc-300 shadow-inner">
+                    <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
+                  </div>
                   <span>Architecture Audit</span>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                <span className="clay-pill-tag text-[10px] font-mono px-2 py-0.5 rounded-full text-zinc-400">
                   AI Evaluated
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-center pt-2 font-mono">
-                <div className="bg-zinc-950 p-2.5 rounded border border-zinc-800">
-                  <p className="text-[10px] text-zinc-500">Health</p>
-                  <p className="text-sm font-semibold text-zinc-100">{copilotReport.healthScore}/100</p>
+              {/* Recessed Stat Gauges */}
+              <div className="grid grid-cols-3 gap-2 text-center font-mono">
+                <div className="clay-recessed-input p-2.5 rounded-xl">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-sans">Health</p>
+                  <p className="text-sm sm:text-base font-bold text-white mt-0.5">
+                    {copilotReport.healthScore}
+                    <span className="text-[10px] text-zinc-500 font-normal">/100</span>
+                  </p>
                 </div>
-                <div className="bg-zinc-950 p-2.5 rounded border border-zinc-800">
-                  <p className="text-[10px] text-zinc-500">Modularity</p>
-                  <p className="text-sm font-semibold text-emerald-400">{copilotReport.modularityScore}%</p>
+                <div className="clay-recessed-input p-2.5 rounded-xl">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-sans">Modularity</p>
+                  <p className="text-sm sm:text-base font-bold text-emerald-400 mt-0.5">
+                    {copilotReport.modularityScore}%
+                  </p>
                 </div>
-                <div className="bg-zinc-950 p-2.5 rounded border border-zinc-800">
-                  <p className="text-[10px] text-zinc-500">Coupling</p>
-                  <p className="text-sm font-semibold text-amber-400">{copilotReport.couplingScore}%</p>
+                <div className="clay-recessed-input p-2.5 rounded-xl">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-sans">Coupling</p>
+                  <p className="text-sm sm:text-base font-bold text-amber-400 mt-0.5">
+                    {copilotReport.couplingScore}%
+                  </p>
                 </div>
               </div>
             </div>
 
+            {/* Single Points of Failure Alert */}
             {copilotReport.singlePointsOfFailure.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-medium text-red-400">
-                  <ShieldAlert className="w-3.5 h-3.5" />
-                  <span>Single Points of Failure ({copilotReport.singlePointsOfFailure.length})</span>
-                </div>
-                {copilotReport.singlePointsOfFailure.map((spof) => (
-                  <div
-                    key={spof.nodeId}
-                    onClick={() => {
-                      const n = graphData.nodes.find((item) => item.id === spof.nodeId);
-                      if (n) onSelectNode(n);
-                    }}
-                    className="p-3 rounded-lg bg-zinc-900/40 border border-zinc-800 hover:border-zinc-700 cursor-pointer transition-all space-y-1"
-                  >
-                    <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="text-zinc-200 truncate">{spof.label}</span>
-                      <span className="text-[10px] text-red-400 font-semibold px-1.5 py-0.5 rounded bg-red-950/40 border border-red-900/60">
-                        {spof.dependentCount} Dependents
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-zinc-400 leading-normal">{spof.reason}</p>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>Single Points of Failure ({copilotReport.singlePointsOfFailure.length})</span>
                   </div>
-                ))}
+                  <span className="text-[10px] font-mono text-zinc-500">Critical Modules</span>
+                </div>
+
+                <div className="space-y-2">
+                  {copilotReport.singlePointsOfFailure.map((spof) => (
+                    <div
+                      key={spof.nodeId}
+                      onClick={() => {
+                        const n = graphData.nodes.find((item) => item.id === spof.nodeId);
+                        if (n) onSelectNode(n);
+                      }}
+                      className="clay-card-raised rounded-2xl p-3.5 cursor-pointer hover:border-white/15 transition-all space-y-1.5 group"
+                    >
+                      <div className="flex items-center justify-between text-xs font-mono">
+                        <span className="text-zinc-100 font-semibold group-hover:text-white truncate">
+                          {spof.label}
+                        </span>
+                        <span className="text-[10px] text-red-300 font-semibold px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/60 shrink-0">
+                          {spof.dependentCount} Dependents
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">{spof.reason}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
-            <div className="space-y-2">
-              <h4 className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+            {/* Refactoring Guidance Recommendations */}
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
                 <Zap className="w-3.5 h-3.5 text-zinc-400" />
                 <span>Refactoring Guidance</span>
-              </h4>
+              </div>
 
-              {copilotReport.recommendations.map((rec, idx) => (
-                <div
-                  key={idx}
-                  className="bg-zinc-900/40 p-3 rounded-lg border border-zinc-800 space-y-1 text-xs"
-                >
-                  <div className="flex items-center justify-between font-medium">
-                    <span className="text-zinc-200">{rec.title}</span>
-                    <span className="text-[10px] font-mono text-zinc-500 uppercase">{rec.priority}</span>
+              <div className="space-y-2">
+                {copilotReport.recommendations.map((rec, idx) => (
+                  <div
+                    key={idx}
+                    className="clay-card-raised rounded-2xl p-3.5 space-y-1.5 text-xs"
+                  >
+                    <div className="flex items-center justify-between font-medium">
+                      <span className="text-zinc-100 font-semibold">{rec.title}</span>
+                      <span
+                        className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded-full ${
+                          rec.priority === "High"
+                            ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                            : rec.priority === "Medium"
+                            ? "bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                            : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                        }`}
+                      >
+                        {rec.priority}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">{rec.description}</p>
                   </div>
-                  <p className="text-[11px] text-zinc-400 leading-normal">{rec.description}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* TAB 2: INSPECTOR */}
+        {/* TAB 2: NODE INSPECTOR */}
         {activeTab === "inspector" && (
           <div className="space-y-4">
             {selectedNode ? (
               <div className="space-y-4">
-                <div className="p-4 rounded-lg bg-zinc-900/50 border border-zinc-800 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">
+                {/* Node Metadata Card */}
+                <div className="clay-card-raised rounded-2xl p-4 space-y-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span
+                        className={`text-[9px] font-mono uppercase font-bold px-2 py-0.5 rounded-full inline-block ${
+                          selectedNode.type === "route"
+                            ? "bg-rose-500/10 text-rose-300 border border-rose-500/20"
+                            : selectedNode.type === "utility"
+                            ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                            : selectedNode.type === "module"
+                            ? "bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                            : "bg-slate-700/30 text-slate-300 border border-slate-600/30"
+                        }`}
+                      >
                         {selectedNode.type}
                       </span>
-                      <h3 className="text-sm font-semibold text-white mt-1 break-all">
+                      <h3 className="text-sm font-bold text-white mt-1.5 break-all">
                         {selectedNode.label}
                       </h3>
-                      <p className="text-[11px] font-mono text-zinc-500 mt-0.5 break-all">
+                      <p className="text-[11px] font-mono text-zinc-400 mt-0.5 break-all">
                         {selectedNode.id}
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-zinc-800/80 font-mono text-xs">
-                    <div>
-                      <p className="text-[10px] text-zinc-500">Lines</p>
-                      <p className="font-semibold text-zinc-200">{selectedNode.lineCount}</p>
+                  {/* Node Recessed Stats Grid */}
+                  <div className="grid grid-cols-3 gap-2 text-center font-mono">
+                    <div className="clay-recessed-input p-2 rounded-xl">
+                      <p className="text-[9px] text-zinc-500 font-sans uppercase">Lines</p>
+                      <p className="text-xs font-bold text-zinc-200 mt-0.5">{selectedNode.lineCount}</p>
                     </div>
-                    <div>
-                      <p className="text-[10px] text-zinc-500">Imports</p>
-                      <p className="font-semibold text-zinc-200">{selectedNode.outDegree}</p>
+                    <div className="clay-recessed-input p-2 rounded-xl">
+                      <p className="text-[9px] text-zinc-500 font-sans uppercase">Imports</p>
+                      <p className="text-xs font-bold text-zinc-200 mt-0.5">{selectedNode.outDegree}</p>
                     </div>
-                    <div>
-                      <p className="text-[10px] text-zinc-500">Dependents</p>
-                      <p className="font-semibold text-zinc-200">{selectedNode.inDegree}</p>
+                    <div className="clay-recessed-input p-2 rounded-xl">
+                      <p className="text-[9px] text-zinc-500 font-sans uppercase">Dependents</p>
+                      <p className="text-xs font-bold text-zinc-200 mt-0.5">{selectedNode.inDegree}</p>
                     </div>
                   </div>
 
                   {selectedNode.code && (
                     <button
                       onClick={() => onOpenInspectorModalWithFile(selectedNode.id)}
-                      className="w-full mt-2 py-1.5 px-3 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700 flex items-center justify-center gap-1.5 transition-all"
+                      className="clay-button-white w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                     >
                       <FileCode className="w-3.5 h-3.5" />
                       <span>View Source Code</span>
@@ -262,50 +359,60 @@ export function Sidebar({
                   )}
                 </div>
 
+                {/* Inbound Dependents List */}
                 <div className="space-y-2">
-                  <h4 className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
-                    <ArrowLeft className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>Imported By ({dependentNodes.length})</span>
-                  </h4>
+                  <div className="flex items-center justify-between text-xs font-semibold text-zinc-200">
+                    <div className="flex items-center gap-1.5">
+                      <ArrowLeft className="w-3.5 h-3.5 text-zinc-400" />
+                      <span>Imported By ({dependentNodes.length})</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-zinc-500">Inbound</span>
+                  </div>
+
                   {dependentNodes.length === 0 ? (
-                    <p className="text-[11px] text-zinc-500 italic bg-zinc-900/30 p-2.5 rounded">
+                    <div className="clay-recessed-input p-3 rounded-2xl text-[11px] text-zinc-500 italic">
                       No inbound references. Entry point or root file.
-                    </p>
+                    </div>
                   ) : (
-                    <div className="space-y-1 max-h-36 overflow-y-auto font-mono text-xs">
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto font-mono text-xs pr-1">
                       {dependentNodes.map((dep) => (
                         <div
                           key={dep.id}
                           onClick={() => onSelectNode(dep)}
-                          className="p-2 rounded bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 flex items-center justify-between cursor-pointer transition-all"
+                          className="clay-pill-tag p-2.5 rounded-xl hover:bg-[#1a202c] text-zinc-300 hover:text-white flex items-center justify-between cursor-pointer transition-all group"
                         >
-                          <span className="truncate">{dep.label}</span>
-                          <span className="text-[10px] text-zinc-500 uppercase">{dep.type}</span>
+                          <span className="truncate group-hover:font-medium">{dep.label}</span>
+                          <span className="text-[9px] text-zinc-500 uppercase shrink-0 ml-2">{dep.type}</span>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
+                {/* Outbound Imports List */}
                 <div className="space-y-2">
-                  <h4 className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
-                    <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>Imports ({importedNodes.length})</span>
-                  </h4>
+                  <div className="flex items-center justify-between text-xs font-semibold text-zinc-200">
+                    <div className="flex items-center gap-1.5">
+                      <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
+                      <span>Imports ({importedNodes.length})</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-zinc-500">Outbound</span>
+                  </div>
+
                   {importedNodes.length === 0 ? (
-                    <p className="text-[11px] text-zinc-500 italic bg-zinc-900/30 p-2.5 rounded">
+                    <div className="clay-recessed-input p-3 rounded-2xl text-[11px] text-zinc-500 italic">
                       No outbound imports. Leaf node.
-                    </p>
+                    </div>
                   ) : (
-                    <div className="space-y-1 max-h-36 overflow-y-auto font-mono text-xs">
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto font-mono text-xs pr-1">
                       {importedNodes.map((imp) => (
                         <div
                           key={imp.id}
                           onClick={() => onSelectNode(imp)}
-                          className="p-2 rounded bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 flex items-center justify-between cursor-pointer transition-all"
+                          className="clay-pill-tag p-2.5 rounded-xl hover:bg-[#1a202c] text-zinc-300 hover:text-white flex items-center justify-between cursor-pointer transition-all group"
                         >
-                          <span className="truncate">{imp.label}</span>
-                          <span className="text-[10px] text-zinc-500 uppercase">{imp.type}</span>
+                          <span className="truncate group-hover:font-medium">{imp.label}</span>
+                          <span className="text-[9px] text-zinc-500 uppercase shrink-0 ml-2">{imp.type}</span>
                         </div>
                       ))}
                     </div>
@@ -313,26 +420,33 @@ export function Sidebar({
                 </div>
               </div>
             ) : (
-              <div className="text-center py-12 space-y-2">
-                <Info className="w-5 h-5 text-zinc-600 mx-auto" />
-                <h4 className="text-xs font-medium text-zinc-400">No File Selected</h4>
-                <p className="text-[11px] text-zinc-600 max-w-[200px] mx-auto">
-                  Click any node in the 2D graph to inspect its imports and metrics.
-                </p>
+              <div className="clay-card-raised rounded-2xl text-center py-12 px-6 space-y-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#171c26] border border-white/5 flex items-center justify-center mx-auto text-zinc-400 shadow-inner">
+                  <Info className="w-5 h-5 text-zinc-400" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-semibold text-white">No File Selected</h4>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed max-w-[220px] mx-auto">
+                    Click any node in the 2D interactive canvas to inspect dependencies, AST metrics, and raw source code.
+                  </p>
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* TAB 3: CYCLES */}
+        {/* TAB 3: CIRCULAR CYCLES DETECTOR */}
         {activeTab === "cycles" && (
           <div className="space-y-4">
-            <div className="p-3.5 rounded-lg border border-red-900/50 bg-red-950/20 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-                <div className="text-xs">
-                  <h4 className="font-semibold text-red-300">DFS Cycle Detection</h4>
-                  <p className="text-[11px] text-zinc-400">
+            {/* DFS Cycle Detection Banner */}
+            <div className="clay-card-raised rounded-2xl p-4 border-red-950/60 bg-[#160d10] flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-red-950/80 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                </div>
+                <div className="truncate">
+                  <h4 className="text-xs font-bold text-red-200">DFS Cycle Detection</h4>
+                  <p className="text-[11px] text-zinc-400 font-mono">
                     {graphData.circularLoops.length} loop(s) detected
                   </p>
                 </div>
@@ -341,10 +455,10 @@ export function Sidebar({
               {hasCycles && (
                 <button
                   onClick={() => onToggleCyclesOnly(!showCyclesOnly)}
-                  className={`text-[10px] font-mono px-2 py-1 rounded border transition-all ${
+                  className={`text-[10px] font-mono px-3 py-1.5 rounded-xl border transition-all cursor-pointer shrink-0 font-semibold ${
                     showCyclesOnly
-                      ? "bg-red-900 text-white border-red-700"
-                      : "bg-zinc-900 text-red-400 border-zinc-800 hover:bg-zinc-800"
+                      ? "clay-button-white text-zinc-950"
+                      : "clay-pill-tag text-red-400 hover:text-red-300"
                   }`}
                 >
                   {showCyclesOnly ? "Show All" : "Filter Cycles"}
@@ -353,11 +467,13 @@ export function Sidebar({
             </div>
 
             {!hasCycles ? (
-              <div className="text-center py-10 space-y-2 bg-zinc-900/20 p-4 rounded border border-zinc-800">
-                <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto" />
-                <h4 className="text-xs font-medium text-zinc-200">Zero Circular Cycles</h4>
-                <p className="text-[11px] text-zinc-500">
-                  Clean architecture. No recursive import dependencies detected.
+              <div className="clay-card-raised rounded-2xl text-center py-10 px-6 space-y-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-400 shadow-inner">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                </div>
+                <h4 className="text-xs font-semibold text-white">Zero Circular Cycles</h4>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Clean architecture. No recursive import dependencies detected across the graph.
                 </p>
               </div>
             ) : (
@@ -365,10 +481,10 @@ export function Sidebar({
                 {graphData.circularLoops.map((cycle, idx) => (
                   <div
                     key={idx}
-                    className="p-3 rounded-lg bg-zinc-900/40 border border-zinc-800 space-y-2 text-xs font-mono"
+                    className="clay-card-raised rounded-2xl p-3.5 space-y-2.5 text-xs font-mono"
                   >
-                    <div className="flex items-center justify-between border-b border-zinc-800/80 pb-1.5">
-                      <span className="text-red-400 font-semibold">Cycle #{idx + 1}</span>
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                      <span className="text-red-400 font-bold">Cycle #{idx + 1}</span>
                       {(() => {
                         const isSpotlighted =
                           spotlightCycleNodes &&
@@ -377,10 +493,10 @@ export function Sidebar({
                         return (
                           <button
                             onClick={() => onSpotlightCycle(isSpotlighted ? null : cycle)}
-                            className={`text-[10px] px-2 py-0.5 rounded border transition-all ${
+                            className={`text-[10px] font-mono px-2.5 py-1 rounded-xl border transition-all cursor-pointer font-medium ${
                               isSpotlighted
-                                ? "bg-red-900/80 text-white border-red-700"
-                                : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700"
+                                ? "bg-red-500/20 text-red-300 border-red-500/40"
+                                : "clay-pill-tag text-zinc-300 hover:text-white"
                             }`}
                           >
                             {isSpotlighted ? "Clear" : "Spotlight"}
@@ -389,13 +505,13 @@ export function Sidebar({
                       })()}
                     </div>
 
-                    <div className="space-y-1 text-zinc-300 text-[11px]">
+                    <div className="space-y-1.5 text-zinc-300 text-[11px]">
                       {cycle.map((nodeId, stepIdx) => (
-                        <div key={stepIdx} className="flex items-center gap-1.5">
-                          <span className="text-zinc-600">{stepIdx + 1}.</span>
-                          <span className="truncate">{getShortLabel(nodeId)}</span>
+                        <div key={stepIdx} className="flex items-center gap-2">
+                          <span className="text-zinc-500 text-[10px] font-mono">{stepIdx + 1}.</span>
+                          <span className="truncate text-zinc-200">{getShortLabel(nodeId)}</span>
                           {stepIdx < cycle.length - 1 && (
-                            <ArrowRight className="w-3 h-3 text-red-500 ml-auto shrink-0" />
+                            <ArrowRight className="w-3 h-3 text-red-400 ml-auto shrink-0" />
                           )}
                         </div>
                       ))}
@@ -407,41 +523,76 @@ export function Sidebar({
           </div>
         )}
 
-        {/* TAB 4: CONTROLS */}
+        {/* TAB 4: METRICS & CATEGORIES */}
         {activeTab === "controls" && (
           <div className="space-y-4 font-mono text-xs">
-            <div className="p-3.5 rounded-lg bg-zinc-900/40 border border-zinc-800 space-y-3">
-              <h4 className="font-semibold text-zinc-200">AST Parser Metrics</h4>
+            {/* AST Metrics Card */}
+            <div className="clay-card-raised rounded-2xl p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white font-sans">
+                <Sliders className="w-3.5 h-3.5 text-zinc-400" />
+                <span>AST Parser Engine</span>
+              </div>
+
               <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-zinc-950 p-2 rounded border border-zinc-800">
-                  <p className="text-[10px] text-zinc-500">Parse Time</p>
-                  <p className="font-semibold text-zinc-200">{graphData.parseTimeMs} ms</p>
+                <div className="clay-recessed-input p-2.5 rounded-xl">
+                  <p className="text-[9px] text-zinc-500 font-sans uppercase">Parse Time</p>
+                  <p className="text-sm font-bold text-white mt-0.5">{graphData.parseTimeMs} ms</p>
                 </div>
-                <div className="bg-zinc-950 p-2 rounded border border-zinc-800">
-                  <p className="text-[10px] text-zinc-500">File Count</p>
-                  <p className="font-semibold text-zinc-200">{graphData.stats.totalFiles}</p>
+                <div className="clay-recessed-input p-2.5 rounded-xl">
+                  <p className="text-[9px] text-zinc-500 font-sans uppercase">Total Files</p>
+                  <p className="text-sm font-bold text-white mt-0.5">{graphData.stats.totalFiles}</p>
+                </div>
+                <div className="clay-recessed-input p-2.5 rounded-xl">
+                  <p className="text-[9px] text-zinc-500 font-sans uppercase">Total Imports</p>
+                  <p className="text-sm font-bold text-white mt-0.5">{graphData.stats.totalDependencies}</p>
+                </div>
+                <div className="clay-recessed-input p-2.5 rounded-xl">
+                  <p className="text-[9px] text-zinc-500 font-sans uppercase">Circular Loops</p>
+                  <p className={`text-sm font-bold mt-0.5 ${hasCycles ? "text-red-400" : "text-emerald-400"}`}>
+                    {graphData.stats.circularLoopCount}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-lg bg-zinc-900/40 border border-zinc-800 space-y-2">
-              <h4 className="font-semibold text-zinc-200">Categories</h4>
-              <div className="space-y-1.5 text-zinc-400">
-                <div className="flex justify-between">
-                  <span>Routes / Pages</span>
-                  <span className="text-zinc-200 font-bold">{graphData.stats.routeCount}</span>
+            {/* Categories Breakdown */}
+            <div className="clay-card-raised rounded-2xl p-4 space-y-3 font-sans">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                <Layers className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Module Taxonomy</span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between p-2 rounded-xl clay-recessed-input font-mono">
+                  <div className="flex items-center gap-2 font-sans">
+                    <span className="w-2 h-2 rounded-full bg-rose-400" />
+                    <span className="text-zinc-300">Routes / Pages</span>
+                  </div>
+                  <span className="text-white font-bold">{graphData.stats.routeCount}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Components</span>
-                  <span className="text-zinc-200 font-bold">{graphData.stats.componentCount}</span>
+
+                <div className="flex items-center justify-between p-2 rounded-xl clay-recessed-input font-mono">
+                  <div className="flex items-center gap-2 font-sans">
+                    <span className="w-2 h-2 rounded-full bg-slate-300" />
+                    <span className="text-zinc-300">Components</span>
+                  </div>
+                  <span className="text-white font-bold">{graphData.stats.componentCount}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Utilities</span>
-                  <span className="text-zinc-200 font-bold">{graphData.stats.utilityCount}</span>
+
+                <div className="flex items-center justify-between p-2 rounded-xl clay-recessed-input font-mono">
+                  <div className="flex items-center gap-2 font-sans">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="text-zinc-300">Utilities / Helpers</span>
+                  </div>
+                  <span className="text-white font-bold">{graphData.stats.utilityCount}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Modules</span>
-                  <span className="text-zinc-200 font-bold">{graphData.stats.moduleCount}</span>
+
+                <div className="flex items-center justify-between p-2 rounded-xl clay-recessed-input font-mono">
+                  <div className="flex items-center gap-2 font-sans">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span className="text-zinc-300">Shared Modules</span>
+                  </div>
+                  <span className="text-white font-bold">{graphData.stats.moduleCount}</span>
                 </div>
               </div>
             </div>

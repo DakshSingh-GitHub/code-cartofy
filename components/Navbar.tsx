@@ -24,11 +24,12 @@ import {
   Trash2,
   RotateCw,
   ArrowRight,
+  LogIn,
 } from "lucide-react";
 import { SAMPLE_REPOSITORIES } from "@/lib/sampleRepositories";
 import { GraphData } from "@/lib/types";
 import { getClientSession, logoutUser, UserSession } from "@/lib/auth";
-import { StoredRepo } from "@/lib/storage";
+import { StoredRepo, formatRepoTitle, getRepoOwner } from "@/lib/storage";
 
 function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -78,7 +79,9 @@ export function Navbar({
 }: NavbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const recentsDropdownRef = useRef<HTMLDivElement>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isRecentsDropdownOpen, setIsRecentsDropdownOpen] = useState(false);
   const [session, setSession] = useState<UserSession | null>(null);
 
   useEffect(() => {
@@ -96,11 +99,14 @@ export function Navbar({
     window.location.href = "/";
   };
 
-  // Close dropdown on click outside
+  // Close dropdowns on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
+      }
+      if (recentsDropdownRef.current && !recentsDropdownRef.current.contains(event.target as Node)) {
+        setIsRecentsDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -180,7 +186,7 @@ export function Navbar({
   };
 
   return (
-    <header className="flex flex-col border-b border-zinc-800 bg-zinc-950 z-30 relative shrink-0">
+    <header className="flex flex-col border-b border-white/5 bg-[#0c0e12] z-30 relative shrink-0 font-sans">
       <input
         type="file"
         ref={fileInputRef}
@@ -191,79 +197,80 @@ export function Navbar({
       />
 
       {/* ROW 1: Brand, Active Repository Selector, Recents Bar & Session */}
-      <div className="h-11 px-4 flex items-center justify-between border-b border-zinc-800/80">
+      <div className="h-12 px-3 sm:px-5 flex items-center justify-between border-b border-white/5">
         {/* Left: Brand Logo & Repo Selector with Reload */}
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer">
-            <div className="w-6 h-6 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-100 shadow-sm">
-              <GitFork className="w-3.5 h-3.5 transform rotate-90 text-indigo-400" />
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <Link href="/" className="flex items-center gap-2 hover:opacity-85 transition-opacity cursor-pointer shrink-0">
+            <div className="w-7 h-7 rounded-xl bg-[#1d222d] border border-white/5 flex items-center justify-center text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_4px_rgba(0,0,0,0.4)]">
+              <GitFork className="w-3.5 h-3.5 transform rotate-90 text-zinc-300" />
             </div>
-            <span className="font-semibold text-sm tracking-tight text-zinc-100">
+            <span className="font-semibold text-xs sm:text-sm tracking-tight text-white hidden xs:inline sm:inline">
               CodeCartofy
             </span>
           </Link>
 
-          <span className="text-zinc-700 font-mono text-xs">/</span>
+          <span className="text-zinc-600 font-mono text-xs hidden sm:inline">/</span>
 
           {inDemoMode && (
-            <div className="hidden md:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-bold tracking-wider uppercase">
-              <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
-              <span>Demo Mode</span>
+            <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full clay-pill-tag text-zinc-300 text-[10px] font-mono uppercase font-semibold">
+              <Sparkles className="w-3 h-3 text-zinc-300" />
+              <span>Demo</span>
             </div>
           )}
 
           {/* Repo Selector & Reload Button Group */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 min-w-0">
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen((prev) => !prev)}
-                className="bg-zinc-900/90 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-xs text-zinc-200 rounded-md px-2.5 py-1 flex items-center justify-between gap-2 transition-all cursor-pointer shadow-sm max-w-[260px] sm:max-w-[320px]"
+                className="clay-pill-tag text-xs text-zinc-200 rounded-xl px-2 sm:px-3 py-1.5 flex items-center justify-between gap-1.5 sm:gap-2 transition-all cursor-pointer max-w-[130px] xs:max-w-[190px] sm:max-w-[280px] md:max-w-[340px]"
               >
                 <div className="flex items-center gap-2 truncate">
                   {currentRepoName.startsWith("GitHub:") ? (
-                    <GitHubIcon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <GitHubIcon className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                   ) : isCustomWorkspace ? (
-                    <Folder className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <Folder className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                   ) : currentRepoName.includes("Circular") ? (
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   ) : currentRepoName.includes("E-Commerce") ? (
-                    <ShoppingBag className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <ShoppingBag className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                   ) : (
-                    <Palette className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <Palette className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                   )}
                   {!isCustomWorkspace && (
-                    <span className="text-[9px] font-mono font-bold text-zinc-400 bg-zinc-800/90 border border-zinc-700/80 px-1 py-0.2 rounded shrink-0">
-                      [SAMPLE]
+                    <span className="text-[9px] font-mono font-bold text-zinc-400 bg-[#161a22] border border-white/5 px-1 py-0.2 rounded shrink-0">
+                      SAMPLE
                     </span>
                   )}
-                  <span className="truncate font-medium text-zinc-100">{currentRepoName}</span>
+                  <span className="truncate font-medium text-white">{formatRepoTitle(currentRepoName)}</span>
                 </div>
 
                 <ChevronDown
-                  className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
-                    isDropdownOpen ? "transform rotate-180 text-zinc-200" : ""
+                  className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 shrink-0 ${
+                    isDropdownOpen ? "transform rotate-180 text-white" : ""
                   }`}
                 />
               </button>
 
               {/* Dropdown Popover Menu with Recents */}
               {isDropdownOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-84 bg-zinc-950/95 backdrop-blur-xl border border-zinc-800 rounded-xl shadow-2xl z-50 p-2 space-y-2 animate-fadeIn max-h-[85vh] overflow-y-auto">
-                  
+                <div className="absolute left-0 top-full mt-2 w-80 sm:w-96 clay-container-deep border border-white/10 rounded-2xl shadow-2xl z-50 p-2.5 space-y-2 animate-fadeIn max-h-[80vh] overflow-y-auto">
                   {/* RECENT REPOSITORIES SECTION */}
                   {recentRepos.length > 0 && (
-                    <div className="space-y-1 pb-2 border-b border-zinc-800/80">
+                    <div className="space-y-1.5 pb-2.5 border-b border-white/5">
                       <div className="px-2 py-1 flex items-center justify-between">
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                          <Clock className="w-3 h-3 text-indigo-400" />
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 text-zinc-400" />
                           Recent Repositories ({recentRepos.length})
                         </span>
-                        <span className="text-[9px] font-mono text-zinc-500">LocalStorage</span>
+                        <span className="text-[9px] font-mono text-zinc-500">Local Cache</span>
                       </div>
 
                       <div className="space-y-1">
                         {recentRepos.map((repo) => {
                           const isSelected = repo.name === currentRepoName || repo.id === currentRepoId;
+                          const title = formatRepoTitle(repo.name);
+                          const owner = getRepoOwner(repo.name);
                           return (
                             <div
                               key={repo.id}
@@ -271,28 +278,28 @@ export function Navbar({
                                 if (onSelectRecentRepo) onSelectRecentRepo(repo);
                                 setIsDropdownOpen(false);
                               }}
-                              className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-2 group cursor-pointer ${
+                              className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 group cursor-pointer ${
                                 isSelected
-                                  ? "bg-zinc-900 border-zinc-700 text-zinc-100 shadow-sm"
-                                  : "bg-zinc-950/60 border-transparent hover:bg-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                                  ? "clay-card-raised border-white/10 text-white shadow-sm"
+                                  : "border-transparent hover:bg-[#161a22] text-zinc-400 hover:text-white"
                               }`}
                             >
-                              <div className="flex items-center gap-2 truncate">
-                                <div className="w-5 h-5 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+                              <div className="flex items-center gap-2.5 truncate">
+                                <div className="w-6 h-6 rounded-lg bg-[#0e1116] border border-white/5 flex items-center justify-center shrink-0 shadow-inner">
                                   {repo.type === "github" ? (
-                                    <GitHubIcon className="w-3 h-3 text-blue-400" />
+                                    <GitHubIcon className="w-3 h-3 text-zinc-300" />
                                   ) : repo.type === "upload" ? (
-                                    <Folder className="w-3 h-3 text-indigo-400" />
+                                    <Folder className="w-3 h-3 text-zinc-300" />
                                   ) : (
-                                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                                    <Sparkles className="w-3 h-3 text-zinc-300" />
                                   )}
                                 </div>
                                 <div className="truncate">
                                   <p className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
-                                    {repo.name}
+                                    {title}
                                   </p>
-                                  <p className="text-[9px] font-mono text-zinc-500 truncate">
-                                    {repo.fileCount} Files • {new Date(repo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  <p className="text-[10px] font-mono text-zinc-500 truncate">
+                                    {owner ? `${owner} • ` : ""}{repo.fileCount} Files • {new Date(repo.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </p>
                                 </div>
                               </div>
@@ -307,7 +314,7 @@ export function Navbar({
                                     onClick={(e) => {
                                       if (onRemoveRecentRepo) onRemoveRecentRepo(repo.id, e);
                                     }}
-                                    className="p-1 text-zinc-600 hover:text-red-400 hover:bg-zinc-900 rounded transition-colors"
+                                    className="p-1 text-zinc-500 hover:text-red-400 hover:bg-[#1f1315] rounded transition-colors"
                                     title="Remove from Recents"
                                   >
                                     <Trash2 className="w-3 h-3" />
@@ -323,13 +330,13 @@ export function Navbar({
 
                   {/* SAMPLE REPOSITORIES SECTION - ONLY VISIBLE IN DEMO MODE */}
                   {inDemoMode ? (
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <div className="px-2 py-1 flex items-center justify-between">
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3 h-3 text-zinc-300" />
                           Demo Repositories
                         </span>
-                        <span className="text-[9px] font-mono text-zinc-500 uppercase">Pre-loaded</span>
+                        <span className="text-[9px] font-mono text-zinc-500 uppercase">Preloaded</span>
                       </div>
 
                       {SAMPLE_REPOSITORIES.map((repo) => {
@@ -341,28 +348,20 @@ export function Navbar({
                               onSelectSampleRepo(repo.id);
                               setIsDropdownOpen(false);
                             }}
-                            className={`w-full text-left p-2 rounded-lg border transition-all flex items-center justify-between gap-3 group ${
+                            className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 group cursor-pointer ${
                               isSelected
-                                ? "bg-zinc-900 border-zinc-700 text-zinc-100 shadow-sm"
-                                : "bg-transparent border-transparent hover:bg-zinc-900/60 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                                ? "clay-card-raised border-white/10 text-white shadow-sm"
+                                : "border-transparent hover:bg-[#161a22] text-zinc-400 hover:text-white"
                             }`}
                           >
-                            <div className="flex items-center gap-2 truncate">
-                              <div
-                                className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 ${
-                                  repo.id === "circular-loop-demo"
-                                    ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                                    : repo.id === "nextjs-ecommerce"
-                                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
-                                    : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                                }`}
-                              >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <div className="w-6 h-6 rounded-lg bg-[#0e1116] border border-white/5 flex items-center justify-center shrink-0 shadow-inner">
                                 {repo.id === "circular-loop-demo" ? (
-                                  <AlertTriangle className="w-3 h-3" />
+                                  <AlertTriangle className="w-3 h-3 text-amber-400" />
                                 ) : repo.id === "nextjs-ecommerce" ? (
-                                  <ShoppingBag className="w-3 h-3" />
+                                  <ShoppingBag className="w-3 h-3 text-zinc-300" />
                                 ) : (
-                                  <Palette className="w-3 h-3" />
+                                  <Palette className="w-3 h-3 text-zinc-300" />
                                 )}
                               </div>
 
@@ -370,7 +369,7 @@ export function Navbar({
                                 <p className="text-xs font-semibold text-zinc-100 group-hover:text-white truncate">
                                   {repo.name.replace(/^[^\s]+\s/, "")}
                                 </p>
-                                <p className="text-[9px] font-mono text-zinc-500 truncate">
+                                <p className="text-[10px] font-mono text-zinc-500 truncate">
                                   {repo.files.length} Files • {repo.category}
                                 </p>
                               </div>
@@ -386,17 +385,17 @@ export function Navbar({
                       })}
                     </div>
                   ) : (
-                    <div className="pt-2 border-t border-zinc-800">
+                    <div className="pt-2 border-t border-white/5">
                       <Link
                         href="/cartofy?demo=true"
                         onClick={() => setIsDropdownOpen(false)}
-                        className="w-full text-left p-2 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900/40 hover:bg-zinc-900 transition-all flex items-center justify-between gap-2 text-zinc-400 hover:text-zinc-200 group"
+                        className="clay-card-raised w-full text-left p-2.5 rounded-xl transition-all flex items-center justify-between gap-2 text-zinc-300 hover:text-white group"
                       >
                         <div className="flex items-center gap-2">
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                          <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
                           <span className="text-xs font-medium">Switch to Demo Mode</span>
                         </div>
-                        <ArrowRight className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300" />
+                        <ArrowRight className="w-3 h-3 text-zinc-500 group-hover:text-white transition-colors" />
                       </Link>
                     </div>
                   )}
@@ -409,36 +408,37 @@ export function Navbar({
               <button
                 onClick={onReloadCurrentRepo}
                 disabled={isParsing}
-                className="p-1.5 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-100 transition-all disabled:opacity-50 cursor-pointer shadow-sm"
-                title="Reload/Refresh current repository from source"
+                className="w-7 h-7 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 hover:text-white transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                title="Reload/Refresh repository from source"
               >
-                <RotateCw className={`w-3.5 h-3.5 ${isParsing ? "animate-spin text-indigo-400" : ""}`} />
+                <RotateCw className={`w-3 h-3 ${isParsing ? "animate-spin text-zinc-200" : ""}`} />
               </button>
             )}
           </div>
         </div>
 
-        {/* Right: Dashboard Link, User Session Profile Badge & Sign Out */}
-        <div className="flex items-center gap-2">
+        {/* Right: Dashboard Link, Profile Badge & Sign Out */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/dashboard"
+            className="clay-button-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
+            title="Go to Dashboard"
+          >
+            <span>Dashboard</span>
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+
+          {isGuestMode && (
+            <div className="hidden sm:flex items-center gap-1 text-[10px] font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full">
+              <Lock className="w-3 h-3 text-amber-400" />
+              <span>GUEST</span>
+            </div>
+          )}
+
           {session ? (
             <div className="flex items-center gap-2">
-              <Link
-                href="/dashboard"
-                className="px-2.5 py-1 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-mono text-zinc-300 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
-                title="Go to Dashboard"
-              >
-                <span>Dashboard</span>
-              </Link>
-
-              {isGuestMode && (
-                <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-amber-400 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded shadow-sm">
-                  <Lock className="w-3 h-3 text-amber-400" />
-                  <span>GUEST MODE</span>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2 text-xs font-mono text-zinc-200 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-md shadow-sm">
-                <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-zinc-700 bg-zinc-950 flex items-center justify-center">
+              <div className="clay-pill-tag px-2.5 sm:px-3 py-1 rounded-full flex items-center gap-2 text-xs text-zinc-200 font-mono">
+                <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-white/10 bg-[#1e2533] flex items-center justify-center text-[10px] font-bold text-sky-200 shadow-inner">
                   <img
                     src={session.avatarUrl || "/vlyxir/favicon.png"}
                     alt={session.name}
@@ -448,97 +448,167 @@ export function Navbar({
                     }}
                   />
                 </div>
-                <span className="truncate max-w-[130px] font-medium text-zinc-100">{session.name}</span>
+                <span className="truncate max-w-[110px] font-medium text-zinc-100 hidden md:inline">{session.name}</span>
               </div>
 
               <button
                 onClick={handleLogout}
-                className="p-1 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-900/60 transition-all cursor-pointer"
-                title="Sign Out (Lock Session)"
+                className="w-7 h-7 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 hover:text-red-400 transition-all cursor-pointer"
+                title="Sign Out"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-3 h-3" />
               </button>
             </div>
           ) : (
             <Link
               href="/login"
-              className="px-3 py-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-xs font-medium rounded-md transition-all"
+              className="clay-pill-tag hover:bg-[#1a202c] px-3.5 py-1.5 rounded-xl text-xs text-zinc-200 hover:text-white transition-all font-semibold flex items-center gap-1.5"
             >
-              Sign In
+              <LogIn className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Login</span>
             </Link>
           )}
         </div>
       </div>
 
       {/* ROW 2: Search, Recents Bar Pills, Graph Summary Stats, Import & Export Actions */}
-      <div className="h-10 px-4 flex items-center justify-between bg-zinc-950/90 text-xs gap-3 overflow-x-auto">
+      <div className="h-11 px-3 sm:px-5 flex items-center justify-between text-xs gap-2 sm:gap-3 relative">
         {/* Left: Search & Quick Recents Bar Pills */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="relative w-40 sm:w-52">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-zinc-500" />
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="relative w-28 xs:w-36 sm:w-48 md:w-56">
+            <Search className="w-3 h-3 absolute left-3 top-2.5 text-zinc-500" />
             <input
               type="text"
               placeholder="Search module or file..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 placeholder-zinc-500 rounded-md pl-8 pr-3 py-0.5 focus:outline-none focus:border-zinc-700 transition-all font-mono"
+              className="clay-recessed-input w-full text-xs text-zinc-100 placeholder-zinc-500 rounded-xl pl-8 pr-6 py-1 focus:outline-none transition-all font-mono"
             />
             {searchQuery && (
               <button
                 onClick={() => onSearchChange("")}
-                className="absolute right-2 top-1 text-zinc-400 hover:text-zinc-200 text-xs"
+                className="absolute right-2.5 top-1.5 text-zinc-400 hover:text-white text-xs cursor-pointer"
               >
                 ✕
               </button>
             )}
           </div>
 
-          {/* Quick Recents Pills Bar */}
+          {/* Recents Dropdown */}
           {recentRepos.length > 0 && onSelectRecentRepo && (
-            <div className="hidden lg:flex items-center gap-1.5 border-l border-zinc-800 pl-3">
-              <span className="text-[10px] font-mono text-zinc-500 uppercase shrink-0 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-zinc-500" />
-                Recents:
-              </span>
-              <div className="flex items-center gap-1 overflow-x-auto max-w-[360px] no-scrollbar">
-                {recentRepos.slice(0, 4).map((r) => {
-                  const isActive = r.name === currentRepoName || r.id === currentRepoId;
-                  return (
-                    <button
-                      key={r.id}
-                      onClick={() => onSelectRecentRepo(r)}
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-all truncate max-w-[130px] flex items-center gap-1 cursor-pointer ${
-                        isActive
-                          ? "bg-zinc-800 text-zinc-100 border-zinc-700 font-semibold"
-                          : "bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200"
-                      }`}
-                    >
-                      <span className="truncate">{r.name.replace("GitHub: ", "")}</span>
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="relative shrink-0 border-l border-white/5 pl-2 sm:pl-2.5" ref={recentsDropdownRef}>
+              <button
+                onClick={() => setIsRecentsDropdownOpen((prev) => !prev)}
+                className="clay-pill-tag text-xs text-zinc-300 hover:text-white rounded-xl px-2.5 sm:px-3 py-1 flex items-center gap-1.5 cursor-pointer transition-all font-mono"
+                title="View recent repositories"
+              >
+                <Clock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span className="font-sans text-xs font-semibold text-zinc-200">Recents</span>
+                <span className="text-[10px] font-mono text-zinc-400 bg-[#161a22] border border-white/5 px-1.5 py-0.2 rounded-full font-bold">
+                  {recentRepos.length}
+                </span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+                    isRecentsDropdownOpen ? "transform rotate-180 text-white" : ""
+                  }`}
+                />
+              </button>
+
+              {/* Recents Dropdown Popover Menu */}
+              {isRecentsDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-72 sm:w-80 max-w-[calc(100vw-2rem)] clay-container-deep border border-white/10 rounded-2xl shadow-2xl z-[60] p-2.5 space-y-1.5 animate-fadeIn max-h-80 overflow-y-auto">
+                  <div className="px-2 py-1 flex items-center justify-between border-b border-white/5 pb-2">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                      <Clock className="w-3 h-3 text-zinc-400" />
+                      Recent Repositories ({recentRepos.length})
+                    </span>
+                    <span className="text-[9px] font-mono text-zinc-500">History</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    {recentRepos.map((repo) => {
+                      const isActive = repo.name === currentRepoName || repo.id === currentRepoId;
+                      const title = formatRepoTitle(repo.name);
+                      const owner = getRepoOwner(repo.name);
+
+                      return (
+                        <div
+                          key={repo.id}
+                          onClick={() => {
+                            onSelectRecentRepo(repo);
+                            setIsRecentsDropdownOpen(false);
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2.5 group cursor-pointer ${
+                            isActive
+                              ? "clay-card-raised border-white/10 text-white shadow-sm"
+                              : "border-transparent hover:bg-[#161a22] text-zinc-400 hover:text-white"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate min-w-0">
+                            <div className="w-7 h-7 rounded-lg bg-[#0e1116] border border-white/5 flex items-center justify-center shrink-0 shadow-inner">
+                              {repo.type === "github" ? (
+                                <GitHubIcon className="w-3.5 h-3.5 text-zinc-300" />
+                              ) : repo.type === "upload" ? (
+                                <Folder className="w-3.5 h-3.5 text-zinc-300" />
+                              ) : (
+                                <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
+                              )}
+                            </div>
+                            <div className="truncate min-w-0">
+                              <p className="text-xs font-bold text-zinc-200 group-hover:text-white truncate">
+                                {title}
+                              </p>
+                              <p className="text-[10px] font-mono text-zinc-500 truncate">
+                                {owner ? `${owner} • ` : ""}{repo.fileCount} files
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isActive ? (
+                              <div className="w-4 h-4 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                <Check className="w-2.5 h-2.5" />
+                              </div>
+                            ) : onRemoveRecentRepo ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRemoveRecentRepo(repo.id, e);
+                                }}
+                                className="p-1 text-zinc-500 hover:text-red-400 hover:bg-[#1f1315] rounded transition-colors"
+                                title="Remove from Recents"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Graph Stats Badge */}
           {graphData && (
-            <div className="hidden xl:flex items-center gap-2.5 bg-zinc-900/70 border border-zinc-800 rounded-md px-2.5 py-0.5 font-mono text-[11px]">
+            <div className="hidden xl:flex items-center gap-2.5 clay-pill-tag rounded-full px-3 py-1 font-mono text-[11px]">
               <div className="flex items-center gap-1 text-zinc-300">
                 <FileCode className="w-3 h-3 text-zinc-400" />
                 <span>{stats?.totalFiles} files</span>
               </div>
-              <div className="h-3 w-[1px] bg-zinc-800" />
+              <div className="h-3 w-[1px] bg-white/10" />
               <div className="flex items-center gap-1 text-zinc-300">
                 <Layers className="w-3 h-3 text-zinc-400" />
                 <span>{stats?.totalDependencies} imports</span>
               </div>
               {hasCycles && (
                 <>
-                  <div className="h-3 w-[1px] bg-zinc-800" />
-                  <div className="flex items-center gap-1 text-red-400 font-semibold px-1 py-0.2 rounded bg-red-950/40 border border-red-900/60">
-                    <AlertTriangle className="w-3 h-3" />
-                    <span>{stats?.circularLoopCount} Cycles</span>
+                  <div className="h-3 w-[1px] bg-white/10" />
+                  <div className="flex items-center gap-1 text-red-300 font-semibold px-2 py-0.2 rounded-full bg-red-500/10 border border-red-500/20">
+                    <AlertTriangle className="w-3 h-3 text-red-400" />
+                    <span>{stats?.circularLoopCount} Loops</span>
                   </div>
                 </>
               )}
@@ -552,19 +622,19 @@ export function Navbar({
             /* Restricted Ingestion Controls in Guest Mode */
             <div className="flex items-center gap-2">
               <div
-                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-zinc-900/80 border border-zinc-800/80 text-zinc-500 text-[11px] font-mono cursor-not-allowed"
-                title="Custom folder uploads require a free account. Select any pre-loaded Sample Repository or Sign In."
+                className="flex items-center gap-1 px-3 py-1 rounded-xl clay-pill-tag text-zinc-500 text-[11px] font-mono cursor-not-allowed"
+                title="Custom folder uploads require a free account."
               >
-                <Lock className="w-3 h-3 text-amber-500/80" />
-                <span className="hidden sm:inline">Folder Upload (Guest Restricted)</span>
+                <Lock className="w-3 h-3 text-amber-500/70" />
+                <span className="hidden sm:inline">Folder Upload</span>
               </div>
 
               <div
-                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-zinc-900/80 border border-zinc-800/80 text-zinc-500 text-[11px] font-mono cursor-not-allowed"
-                title="GitHub repo fetching requires a free account. Select any pre-loaded Sample Repository or Sign In."
+                className="flex items-center gap-1 px-3 py-1 rounded-xl clay-pill-tag text-zinc-500 text-[11px] font-mono cursor-not-allowed"
+                title="GitHub repo fetching requires a free account."
               >
-                <Lock className="w-3 h-3 text-amber-500/80" />
-                <span className="hidden sm:inline">GitHub Repo (Guest Restricted)</span>
+                <Lock className="w-3 h-3 text-amber-500/70" />
+                <span className="hidden sm:inline">GitHub Repo</span>
               </div>
             </div>
           ) : (
@@ -573,7 +643,7 @@ export function Navbar({
               <button
                 onClick={handleNativeFolderSelect}
                 disabled={isParsing}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-zinc-800 transition-all disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-xl clay-pill-tag text-zinc-300 hover:text-white text-xs font-medium transition-all disabled:opacity-50 cursor-pointer"
                 title="Ingest local project directory"
               >
                 {isParsing ? (
@@ -587,7 +657,7 @@ export function Navbar({
               <button
                 onClick={onOpenGithubModal}
                 disabled={isParsing}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-xs font-medium transition-all disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-xl clay-button-white text-zinc-950 text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
                 title="Fetch public GitHub repository"
               >
                 <GitHubIcon className="w-3.5 h-3.5 text-zinc-900" />
@@ -599,7 +669,7 @@ export function Navbar({
           {/* File Inspector Trigger */}
           <button
             onClick={onOpenInspectorModal}
-            className="p-1 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer"
+            className="w-7 h-7 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
             title="Inspect Files & Raw Code"
           >
             <Eye className="w-3.5 h-3.5" />
@@ -608,7 +678,7 @@ export function Navbar({
           {/* Export Trigger */}
           <button
             onClick={onOpenExportModal}
-            className="p-1 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer"
+            className="w-7 h-7 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
             title="Export Image / Report"
           >
             <Download className="w-3.5 h-3.5" />

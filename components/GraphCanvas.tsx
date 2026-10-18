@@ -307,13 +307,14 @@ export function GraphCanvas({
       ref={containerRef}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
-      className="force-canvas-container relative overflow-hidden select-none bg-black w-full h-full"
+      className="force-canvas-container relative overflow-hidden select-none bg-[#0c0e12] w-full h-full"
     >
       <ForceGraph2D
         key={`${filteredData.nodes.length}-${filteredData.links.length}-${filteredData.nodes[0]?.id || "empty"}`}
         ref={fgRef}
         width={dimensions.width}
         height={dimensions.height}
+        backgroundColor="#0c0e12"
         graphData={filteredData}
         nodeVal={(node: any) => node.size || 5}
         nodeCanvasObject={drawNode}
@@ -341,10 +342,10 @@ export function GraphCanvas({
         }}
         linkColor={getLinkColor}
         linkWidth={(link: any) => {
-          if (link.isCircular) return 2;
+          if (link.isCircular) return 2.2;
           const srcId = typeof link.source === "string" ? link.source : link.source.id;
           const tgtId = typeof link.target === "string" ? link.target : link.target.id;
-          if (selectedNode && (srcId === selectedNode.id || tgtId === selectedNode.id)) return 1.5;
+          if (selectedNode && (srcId === selectedNode.id || tgtId === selectedNode.id)) return 1.8;
           return 1;
         }}
         linkDirectionalParticles={(link: any) => {
@@ -357,44 +358,44 @@ export function GraphCanvas({
         linkDirectionalParticleWidth={2}
         linkDirectionalParticleSpeed={0.007}
         linkDirectionalParticleColor={(link: any) =>
-          link.isCircular ? "#ef4444" : "#ffffff"
+          link.isCircular ? "#f87171" : "#ffffff"
         }
         cooldownTicks={400}
         d3VelocityDecay={0.25}
       />
 
-      {/* Floating Canvas Controls */}
-      <div className="canvas-overlay-control absolute bottom-5 left-5 flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 rounded-md p-1 shadow-lg z-20">
+      {/* Floating Tactile Canvas Controls */}
+      <div className="canvas-overlay-control absolute bottom-5 left-5 flex items-center gap-1.5 clay-pill-tag rounded-2xl p-1.5 shadow-2xl z-20">
         <button
           onClick={handleZoomIn}
-          className="p-1.5 rounded hover:bg-zinc-900 text-zinc-400 hover:text-zinc-100 transition-all"
+          className="w-7 h-7 rounded-xl bg-[#141720] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-all shadow-inner cursor-pointer"
           title="Zoom In"
         >
           <ZoomIn className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={handleZoomOut}
-          className="p-1.5 rounded hover:bg-zinc-900 text-zinc-400 hover:text-zinc-100 transition-all"
+          className="w-7 h-7 rounded-xl bg-[#141720] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-all shadow-inner cursor-pointer"
           title="Zoom Out"
         >
           <ZoomOut className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={handleResetZoom}
-          className="p-1.5 rounded hover:bg-zinc-900 text-zinc-400 hover:text-zinc-100 transition-all"
+          className="w-7 h-7 rounded-xl bg-[#141720] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-all shadow-inner cursor-pointer"
           title="Fit Graph"
         >
           <Maximize2 className="w-3.5 h-3.5" />
         </button>
 
-        <div className="h-3 w-[1px] bg-zinc-800 my-auto" />
+        <div className="h-4 w-[1px] bg-white/10 my-auto mx-0.5" />
 
         <button
           onClick={togglePhysics}
-          className={`p-1.5 rounded transition-all ${
+          className={`w-7 h-7 rounded-xl border transition-all flex items-center justify-center cursor-pointer ${
             isPhysicsEngineActive
-              ? "bg-zinc-800 text-zinc-100"
-              : "hover:bg-zinc-900 text-zinc-500"
+              ? "bg-white text-zinc-950 border-white/80 font-bold shadow-sm"
+              : "bg-[#141720] border-white/5 text-zinc-400 hover:text-white"
           }`}
           title={isPhysicsEngineActive ? "Pause Physics" : "Resume Physics"}
         >
@@ -403,40 +404,40 @@ export function GraphCanvas({
 
         {onReloadCurrentRepo && (
           <>
-            <div className="h-3 w-[1px] bg-zinc-800 my-auto" />
+            <div className="h-4 w-[1px] bg-white/10 my-auto mx-0.5" />
             <button
               onClick={onReloadCurrentRepo}
               disabled={isParsing}
-              className="p-1.5 rounded hover:bg-zinc-900 text-zinc-400 hover:text-zinc-100 transition-all disabled:opacity-50 cursor-pointer"
+              className="w-7 h-7 rounded-xl bg-[#141720] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
               title="Reload / Refresh Repo from Source"
             >
-              <RotateCw className={`w-3.5 h-3.5 ${isParsing ? "animate-spin text-indigo-400" : ""}`} />
+              <RotateCw className={`w-3.5 h-3.5 ${isParsing ? "animate-spin text-zinc-200" : ""}`} />
             </button>
           </>
         )}
       </div>
 
-      {/* Legend Overlay */}
-      <div className="canvas-overlay-control absolute top-4 left-5 hidden sm:flex items-center gap-4 bg-zinc-950 border border-zinc-800 rounded-md px-3 py-1.5 text-[11px] font-mono text-zinc-400 z-20">
+      {/* Tactile Legend Overlay */}
+      <div className="canvas-overlay-control absolute top-4 left-5 hidden sm:flex items-center gap-3.5 clay-pill-tag rounded-2xl px-4 py-2 text-[11px] font-mono text-zinc-300 z-20 shadow-xl">
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-rose-500" />
+          <span className="w-2 h-2 rounded-full bg-rose-400" />
           <span>Route</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-indigo-500" />
+          <span className="w-2 h-2 rounded-full bg-slate-300" />
           <span>Component</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
           <span>Utility</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-amber-500" />
+          <span className="w-2 h-2 rounded-full bg-amber-400" />
           <span>Module</span>
         </div>
-        <div className="flex items-center gap-1.5 border-l border-zinc-800 pl-3 text-red-400">
-          <span className="w-2 h-2 rounded-full bg-red-500" />
-          <span>Circular Cycle</span>
+        <div className="flex items-center gap-1.5 border-l border-white/10 pl-3 text-red-300">
+          <span className="w-2 h-2 rounded-full bg-red-400" />
+          <span>Circular Loop</span>
         </div>
       </div>
     </div>

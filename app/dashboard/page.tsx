@@ -15,7 +15,7 @@ import {
   GitHubUserProfile,
   GitHubRepoSummary,
 } from "@/lib/githubFetcher";
-import { getRecentRepos, StoredRepo, removeRecentRepo } from "@/lib/storage";
+import { getRecentRepos, StoredRepo, removeRecentRepo, formatRepoTitle, getRepoOwner } from "@/lib/storage";
 import {
   saveUserGithubConnection,
   fetchUserGithubConnection,
@@ -318,40 +318,40 @@ function DashboardContent() {
   const totalAnalyzed = recentAnalyses.length;
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-zinc-800 selection:text-white flex flex-col justify-between">
-      {/* Top Navigation */}
-      <header className="border-b border-zinc-800/80 bg-black/80 sticky top-0 z-30 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-[#0c0e12] text-zinc-100 font-sans selection:bg-zinc-800 selection:text-white flex flex-col justify-between overflow-x-hidden">
+      {/* Top Floating Navigation Capsule */}
+      <header className="w-full pt-5 px-4 sm:px-6 z-30 sticky top-0">
+        <div className="max-w-7xl mx-auto clay-nav-capsule rounded-full px-4 sm:px-6 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2.5 hover:opacity-85 transition-opacity">
-              <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white">
-                <GitFork className="w-4 h-4 transform rotate-90" />
+            <Link href="/" className="flex items-center gap-2.5 group">
+              <div className="w-8 h-8 rounded-xl bg-[#1d222d] border border-white/5 flex items-center justify-center text-zinc-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_4px_rgba(0,0,0,0.4)] group-hover:border-white/10 transition-all">
+                <GitFork className="w-4 h-4 transform rotate-90 text-zinc-300" />
               </div>
-              <span className="font-semibold text-base tracking-tight text-white">
+              <span className="font-semibold text-sm sm:text-base tracking-tight text-white">
                 CodeCartofy
               </span>
             </Link>
 
-            <span className="text-zinc-600">/</span>
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">
+            <span className="text-zinc-600 hidden sm:inline">/</span>
+            <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full clay-pill-tag text-zinc-300 hidden sm:inline">
               Dashboard
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/cartofy"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs text-zinc-200 hover:text-white transition-all shadow-sm group"
+              className="clay-pill-tag px-3 py-1.5 rounded-full text-xs text-zinc-300 hover:text-white flex items-center gap-2 transition-all cursor-pointer"
             >
-              <Activity className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
-              <span>Cartofy Studio</span>
-              <ArrowRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-200 transition-colors" />
+              <Activity className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="hidden xs:inline sm:inline">Cartofy Studio</span>
+              <ArrowRight className="w-3 h-3 text-zinc-500" />
             </Link>
 
             {session && (
-              <div className="flex items-center gap-2 pl-2 border-l border-zinc-800">
-                <div className="flex items-center gap-2 text-xs font-mono text-zinc-200 bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-md shadow-sm">
-                  <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-zinc-700 bg-zinc-950 flex items-center justify-center">
+              <div className="flex items-center gap-2 pl-2 border-l border-white/5">
+                <div className="clay-pill-tag px-2.5 sm:px-3 py-1 rounded-full flex items-center gap-2 text-xs text-zinc-200 font-mono">
+                  <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-white/10 bg-[#1e2533] flex items-center justify-center text-[10px] font-bold text-sky-200">
                     <img
                       src={session.avatarUrl || "/vlyxir/favicon.png"}
                       alt={session.name}
@@ -361,14 +361,14 @@ function DashboardContent() {
                       }}
                     />
                   </div>
-                  <span className="truncate max-w-[120px] font-medium text-zinc-100">
+                  <span className="truncate max-w-[120px] font-medium text-zinc-100 hidden sm:inline">
                     {session.name}
                   </span>
                 </div>
 
                 <button
                   onClick={handleLogout}
-                  className="p-1.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-900/60 transition-all cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-[#141720] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-red-400 hover:border-red-500/20 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_2px_4px_rgba(0,0,0,0.4)] cursor-pointer"
                   title="Sign Out"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -380,16 +380,16 @@ function DashboardContent() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8 space-y-8">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 space-y-8">
         {/* Database Status Alert Banner */}
         {dbNotice && (
           <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs animate-fadeIn ${
+            className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs shadow-lg ${
               dbNotice.type === "error"
-                ? "bg-red-500/10 border-red-500/30 text-red-300"
+                ? "bg-[#1f1315] border-red-500/30 text-red-300"
                 : dbNotice.type === "warning"
-                ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
-                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                ? "bg-[#1f1a14] border-amber-500/30 text-amber-300"
+                : "bg-[#121c17] border-emerald-500/30 text-emerald-300"
             }`}
           >
             <div className="flex items-center gap-2.5">
@@ -409,14 +409,11 @@ function DashboardContent() {
           </div>
         )}
 
-        {/* User Hero Banner */}
-        <div className="p-6 rounded-2xl bg-gradient-to-b from-zinc-900/80 to-zinc-950/80 border border-zinc-800 relative overflow-hidden backdrop-blur-xl">
-          <div className="absolute -top-24 -right-24 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
+        {/* User Hero Banner in Tactile Claymorphism */}
+        <div className="clay-container-deep p-6 sm:p-8 rounded-[2rem] relative overflow-hidden">
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-zinc-700 bg-zinc-900 shrink-0 shadow-lg flex items-center justify-center">
+            <div className="flex items-center gap-4 sm:gap-5">
+              <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl overflow-hidden border-2 border-white/10 bg-[#161a22] shrink-0 shadow-[inset_0_2px_4px_rgba(0,0,0,0.6),0_6px_16px_rgba(0,0,0,0.5)] flex items-center justify-center">
                 <img
                   src={session?.avatarUrl || "/vlyxir/favicon.png"}
                   alt={session?.name || "User"}
@@ -427,36 +424,36 @@ function DashboardContent() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold text-white tracking-tight">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                     {session?.name || "Developer"}
                   </h1>
                   {session?.isGuest && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/10 border border-amber-500/30 text-amber-300">
                       GUEST SANDBOX
                     </span>
                   )}
                   {session?.isVlyxir && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 border border-indigo-500/40 text-indigo-300">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-500/10 border border-sky-500/30 text-sky-300">
                       VLYXIR SSO
                     </span>
                   )}
                 </div>
 
                 <p className="text-xs text-zinc-400 font-mono">
-                  {session?.email || "dev@cartofy.io"} • {session?.country || "Global"}
+                  {session?.email || "dev@cartofy.io"} • {session?.country || "Global Workspace"}
                 </p>
 
                 {/* Connected GitHub Status Tag */}
-                <div className="pt-1 flex items-center gap-2">
+                <div className="pt-1 flex flex-wrap items-center gap-2">
                   {session?.githubUsername ? (
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800 text-emerald-400 text-xs font-mono">
-                      <GitHubIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full clay-pill-tag text-zinc-300 text-xs font-mono">
+                      <GitHubIcon className="w-3.5 h-3.5 text-zinc-300" />
                       <span>Connected: github.com/{session.githubUsername}</span>
                     </div>
                   ) : (
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-950/60 border border-amber-800 text-amber-400 text-xs font-mono">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181512] border border-amber-500/20 text-amber-400 text-xs font-mono">
                       <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
                       <span>GitHub Not Connected</span>
                     </div>
@@ -466,22 +463,22 @@ function DashboardContent() {
             </div>
 
             {/* Actions: Connect GitHub or Refresh */}
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
               {session?.githubUsername ? (
                 <>
                   <button
                     onClick={() => fetchRepositories(session.githubUsername!)}
                     disabled={isLoadingRepos}
-                    className="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs text-zinc-300 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    className="clay-pill-tag px-3.5 py-2 rounded-xl text-xs text-zinc-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
                     title="Refresh repositories from GitHub"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRepos ? "animate-spin text-indigo-400" : ""}`} />
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRepos ? "animate-spin text-zinc-200" : ""}`} />
                     <span>Sync Repos</span>
                   </button>
 
                   <button
                     onClick={handleDisconnectGithub}
-                    className="px-3 py-2 rounded-lg bg-zinc-900/60 hover:bg-red-950/40 border border-zinc-800 hover:border-red-900/60 text-xs text-zinc-400 hover:text-red-300 transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="clay-pill-tag px-3.5 py-2 rounded-xl text-xs text-zinc-400 hover:text-red-400 hover:border-red-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
                     title="Disconnect GitHub account"
                   >
                     <Unlink className="w-3.5 h-3.5" />
@@ -491,7 +488,7 @@ function DashboardContent() {
               ) : (
                 <button
                   onClick={() => setIsConnectModalOpen(true)}
-                  className="px-4 py-2.5 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-semibold transition-all flex items-center gap-2 shadow-lg shadow-white/5 cursor-pointer"
+                  className="clay-button-white px-5 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-2 cursor-pointer"
                 >
                   <GitHubIcon className="w-4 h-4 text-black" />
                   <span>Connect GitHub Profile</span>
@@ -501,50 +498,58 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Glances Metric Cards */}
+        {/* Tactile Metrics Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800/80 space-y-1">
+          <div className="clay-card-raised p-5 rounded-2xl space-y-2">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
               <span>PUBLIC REPOS</span>
-              <FolderGit2 className="w-4 h-4 text-zinc-500" />
+              <div className="w-7 h-7 rounded-lg bg-[#0e1116] border border-white/5 flex items-center justify-center text-zinc-400 shadow-inner">
+                <FolderGit2 className="w-3.5 h-3.5" />
+              </div>
             </div>
             <p className="text-2xl font-bold text-white font-mono">{repos.length}</p>
-            <p className="text-[11px] text-zinc-500">Fetched from GitHub</p>
+            <p className="text-[11px] text-zinc-500">Discovered from GitHub</p>
           </div>
 
-          <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800/80 space-y-1">
+          <div className="clay-card-raised p-5 rounded-2xl space-y-2">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
               <span>ANALYZED REPOS</span>
-              <Activity className="w-4 h-4 text-indigo-400" />
+              <div className="w-7 h-7 rounded-lg bg-[#0e1116] border border-white/5 flex items-center justify-center text-zinc-300 shadow-inner">
+                <Activity className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <p className="text-2xl font-bold text-indigo-400 font-mono">{totalAnalyzed}</p>
-            <p className="text-[11px] text-zinc-500">Saved in Cartofy recents</p>
+            <p className="text-2xl font-bold text-zinc-100 font-mono">{totalAnalyzed}</p>
+            <p className="text-[11px] text-zinc-500">Stored in Cartofy recents</p>
           </div>
 
-          <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800/80 space-y-1">
+          <div className="clay-card-raised p-5 rounded-2xl space-y-2">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
               <span>TOTAL STARS</span>
-              <Star className="w-4 h-4 text-amber-400" />
+              <div className="w-7 h-7 rounded-lg bg-[#0e1116] border border-white/5 flex items-center justify-center text-zinc-400 shadow-inner">
+                <Star className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <p className="text-2xl font-bold text-amber-400 font-mono">{totalStars}</p>
+            <p className="text-2xl font-bold text-zinc-200 font-mono">{totalStars}</p>
             <p className="text-[11px] text-zinc-500">Across public repositories</p>
           </div>
 
-          <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800/80 space-y-1">
+          <div className="clay-card-raised p-5 rounded-2xl space-y-2">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
-              <span>LANGUAGES</span>
-              <Code2 className="w-4 h-4 text-emerald-400" />
+              <span>STACKS</span>
+              <div className="w-7 h-7 rounded-lg bg-[#0e1116] border border-white/5 flex items-center justify-center text-zinc-400 shadow-inner">
+                <Code2 className="w-3.5 h-3.5" />
+              </div>
             </div>
-            <p className="text-2xl font-bold text-emerald-400 font-mono">{availableLanguages.length}</p>
+            <p className="text-2xl font-bold text-zinc-200 font-mono">{availableLanguages.length}</p>
             <p className="text-[11px] text-zinc-500">Active project stacks</p>
           </div>
         </div>
 
         {/* PROMPT BANNER: If GitHub is NOT connected */}
         {!session?.githubUsername && (
-          <div className="p-6 rounded-2xl bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+          <div className="clay-container-deep p-6 sm:p-7 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center text-white shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-[#0f1217] border border-white/5 flex items-center justify-center text-zinc-300 shadow-inner shrink-0">
                 <GitHubIcon className="w-6 h-6" />
               </div>
               <div className="space-y-1">
@@ -552,7 +557,7 @@ function DashboardContent() {
                   Connect your GitHub profile to unlock your repositories
                 </h3>
                 <p className="text-xs text-zinc-400 max-w-xl">
-                  Link your public GitHub profile to see all your repositories listed in one place.
+                  Link your public GitHub profile to see all your repositories listed in one tactile workspace.
                   Click on any repository to instantly parse its Abstract Syntax Tree (AST), detect
                   circular dependencies, and inspect architecture.
                 </p>
@@ -561,7 +566,7 @@ function DashboardContent() {
 
             <button
               onClick={() => setIsConnectModalOpen(true)}
-              className="px-5 py-2.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold transition-all shrink-0 flex items-center gap-2 cursor-pointer shadow-md"
+              className="clay-button-white px-5 py-2.5 rounded-2xl text-xs font-semibold shrink-0 flex items-center gap-2 cursor-pointer"
             >
               <GitHubIcon className="w-4 h-4 text-black" />
               <span>Connect GitHub</span>
@@ -572,34 +577,34 @@ function DashboardContent() {
 
         {/* SECTION: Recent Glances & Analyses */}
         {recentAnalyses.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-indigo-400" />
-                <h2 className="text-sm font-semibold text-white">Recent Architectural Glances</h2>
+                <Clock className="w-4 h-4 text-zinc-400" />
+                <h2 className="text-sm font-bold text-white tracking-tight">Recent Architectural Glances</h2>
               </div>
               <span className="text-xs font-mono text-zinc-500">
                 {recentAnalyses.length} analyzed workspace(s)
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {recentAnalyses.slice(0, 3).map((repo) => (
                 <div
                   key={repo.id}
                   onClick={() => router.push(`/cartofy?repo=${encodeURIComponent(repo.id)}`)}
-                  className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer group space-y-3 relative"
+                  className="clay-card-raised p-5 rounded-2xl cursor-pointer group space-y-3 relative"
                 >
                   <button
                     onClick={(e) => handleRemoveRecent(repo.id, e)}
-                    className="absolute top-3 right-3 text-zinc-600 hover:text-red-400 p-1 rounded transition-colors opacity-0 group-hover:opacity-100"
+                    className="absolute top-3.5 right-3.5 text-zinc-500 hover:text-red-400 p-1 rounded transition-colors opacity-0 group-hover:opacity-100"
                     title="Remove from recents"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
 
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase font-semibold bg-zinc-900 border border-zinc-800 text-zinc-300">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase font-semibold clay-pill-tag text-zinc-300">
                       {repo.type}
                     </span>
                     <span className="text-xs text-zinc-500 font-mono">
@@ -608,15 +613,15 @@ function DashboardContent() {
                   </div>
 
                   <div>
-                    <h3 className="text-xs font-semibold text-white group-hover:text-indigo-400 transition-colors truncate">
-                      {repo.name}
+                    <h3 className="text-xs font-semibold text-white group-hover:text-zinc-200 transition-colors truncate">
+                      {formatRepoTitle(repo.name)}
                     </h3>
-                    <p className="text-[11px] text-zinc-400 font-mono mt-0.5">
-                      {repo.fileCount || repo.files?.length || 0} files mapped
+                    <p className="text-[11px] text-zinc-400 font-mono mt-0.5 truncate">
+                      {getRepoOwner(repo.name) ? `${getRepoOwner(repo.name)} • ` : ""}{repo.fileCount || repo.files?.length || 0} files mapped
                     </p>
                   </div>
 
-                  <div className="pt-1 flex items-center justify-between text-xs text-indigo-400 font-mono">
+                  <div className="pt-1 flex items-center justify-between text-xs text-zinc-300 font-mono">
                     <span>Resume Graph</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                   </div>
@@ -628,13 +633,13 @@ function DashboardContent() {
 
         {/* SECTION: Public Repositories Explorer */}
         {session?.githubUsername && (
-          <div className="space-y-4 pt-2">
+          <div className="space-y-5 pt-2">
             {/* Header & Controls Bar */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-5">
               <div>
                 <div className="flex items-center gap-2">
-                  <GitHubIcon className="w-4 h-4 text-white" />
-                  <h2 className="text-base font-semibold text-white">
+                  <GitHubIcon className="w-4 h-4 text-zinc-200" />
+                  <h2 className="text-base font-bold text-white tracking-tight">
                     Repositories for @{session.githubUsername}
                   </h2>
                 </div>
@@ -645,31 +650,31 @@ function DashboardContent() {
 
               {/* Search & Sort Controls */}
               <div className="flex flex-wrap items-center gap-3">
-                {/* Search */}
-                <div className="relative w-56">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-zinc-500" />
+                {/* Search in Recessed Chassis */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 absolute left-3.5 top-3 text-zinc-500" />
                   <input
                     type="text"
                     placeholder="Search repository..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 text-xs text-white rounded-lg pl-8 pr-3 py-1.5 focus:outline-none transition-all placeholder:text-zinc-500 font-mono"
+                    className="clay-recessed-input w-full text-xs text-white rounded-2xl pl-9 pr-8 py-2 focus:outline-none transition-all placeholder:text-zinc-500 font-mono"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery("")}
-                      className="absolute right-2.5 top-2 text-zinc-500 hover:text-zinc-300 text-xs"
+                      className="absolute right-3 top-2.5 text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer"
                     >
                       ✕
                     </button>
                   )}
                 </div>
 
-                {/* Sort Dropdown */}
+                {/* Sort Dropdown in Pill Chassis */}
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-3 py-1.5 focus:outline-none cursor-pointer font-mono"
+                  className="clay-pill-tag text-xs text-zinc-300 rounded-2xl px-3.5 py-2 focus:outline-none cursor-pointer font-mono"
                 >
                   <option value="updated">Sort: Recently Updated</option>
                   <option value="stars">Sort: Most Starred</option>
@@ -680,17 +685,17 @@ function DashboardContent() {
 
             {/* Language Filter Pills */}
             {availableLanguages.length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-mono">
-                <span className="text-[11px] text-zinc-500 uppercase mr-1 flex items-center gap-1">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs font-mono">
+                <span className="text-[11px] text-zinc-500 uppercase mr-1 flex items-center gap-1 shrink-0">
                   <SlidersHorizontal className="w-3 h-3 text-zinc-500" />
                   Stack:
                 </span>
                 <button
                   onClick={() => setSelectedLanguage("all")}
-                  className={`px-2.5 py-1 rounded-md transition-all ${
+                  className={`px-3 py-1 rounded-full transition-all shrink-0 cursor-pointer ${
                     selectedLanguage === "all"
-                      ? "bg-zinc-100 text-zinc-950 font-semibold shadow-sm"
-                      : "bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800"
+                      ? "clay-button-white text-zinc-950 font-semibold"
+                      : "clay-pill-tag text-zinc-400 hover:text-zinc-200"
                   }`}
                 >
                   All ({repos.length})
@@ -701,10 +706,10 @@ function DashboardContent() {
                     <button
                       key={lang}
                       onClick={() => setSelectedLanguage(lang)}
-                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+                      className={`px-3 py-1 rounded-full transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                         selectedLanguage === lang
-                          ? "bg-zinc-100 text-zinc-950 font-semibold shadow-sm"
-                          : "bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800"
+                          ? "clay-button-white text-zinc-950 font-semibold"
+                          : "clay-pill-tag text-zinc-400 hover:text-zinc-200"
                       }`}
                     >
                       <span
@@ -725,12 +730,12 @@ function DashboardContent() {
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div
                     key={i}
-                    className="p-5 rounded-xl bg-zinc-950/60 border border-zinc-800/60 space-y-3 animate-pulse"
+                    className="clay-card-raised p-6 rounded-2xl space-y-3 animate-pulse"
                   >
                     <div className="h-4 bg-zinc-800 rounded w-2/3" />
                     <div className="h-3 bg-zinc-900 rounded w-full" />
                     <div className="h-3 bg-zinc-900 rounded w-1/2" />
-                    <div className="h-8 bg-zinc-900 rounded w-full mt-4" />
+                    <div className="h-8 bg-zinc-900 rounded-xl w-full mt-4" />
                   </div>
                 ))}
               </div>
@@ -738,14 +743,14 @@ function DashboardContent() {
 
             {/* Error Message */}
             {reposError && (
-              <div className="p-4 rounded-xl bg-red-950/30 border border-red-900/60 text-red-300 text-xs flex items-center justify-between">
+              <div className="p-4 rounded-2xl bg-[#1f1315] border border-red-500/30 text-red-300 text-xs flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
                   <span>{reposError}</span>
                 </div>
                 <button
                   onClick={() => fetchRepositories(session.githubUsername!)}
-                  className="px-2.5 py-1 rounded bg-red-900/50 hover:bg-red-900 text-white text-xs font-mono"
+                  className="clay-pill-tag px-3 py-1 rounded-lg text-white text-xs font-mono cursor-pointer"
                 >
                   Retry
                 </button>
@@ -754,7 +759,7 @@ function DashboardContent() {
 
             {/* Empty State */}
             {!isLoadingRepos && !reposError && filteredRepos.length === 0 && (
-              <div className="text-center py-16 bg-zinc-950/50 rounded-2xl border border-zinc-800/60 p-8 space-y-3">
+              <div className="text-center py-16 clay-container-deep rounded-3xl p-8 space-y-3">
                 <FolderGit2 className="w-10 h-10 text-zinc-600 mx-auto" />
                 <h3 className="text-sm font-semibold text-white">No repositories match your criteria</h3>
                 <p className="text-xs text-zinc-400 max-w-sm mx-auto">
@@ -766,7 +771,7 @@ function DashboardContent() {
                       setSearchQuery("");
                       setSelectedLanguage("all");
                     }}
-                    className="px-3 py-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-mono"
+                    className="clay-pill-tag px-3.5 py-1.5 rounded-full text-xs text-zinc-300 hover:text-white font-mono cursor-pointer"
                   >
                     Clear Filters
                   </button>
@@ -776,36 +781,36 @@ function DashboardContent() {
 
             {/* Repositories Card Grid */}
             {!isLoadingRepos && filteredRepos.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {filteredRepos.map((repo) => (
                   <div
                     key={repo.id}
-                    className="p-5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-zinc-700 transition-all flex flex-col justify-between group relative shadow-sm hover:shadow-indigo-500/5"
+                    className="clay-card-raised p-6 rounded-2xl flex flex-col justify-between group relative"
                   >
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors truncate">
+                        <h3 className="text-sm font-bold text-white group-hover:text-zinc-200 transition-colors truncate">
                           {repo.name}
                         </h3>
                         <a
                           href={repo.htmlUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-zinc-500 hover:text-zinc-200 p-1 transition-colors shrink-0"
+                          className="w-7 h-7 rounded-lg bg-[#0e1116] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-colors shrink-0 shadow-inner"
                           title="Open on GitHub"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                       </div>
 
-                      <p className="text-xs text-zinc-400 line-clamp-2 min-h-[32px]">
+                      <p className="text-xs text-zinc-400 line-clamp-2 min-h-[32px] leading-relaxed">
                         {repo.description || "No description provided."}
                       </p>
                     </div>
 
-                    <div className="pt-4 space-y-3">
+                    <div className="pt-4 space-y-3.5">
                       {/* Meta badges: Language, Stars, Forks */}
-                      <div className="flex items-center gap-3 text-xs font-mono text-zinc-400 border-t border-zinc-900 pt-3">
+                      <div className="flex items-center gap-3 text-xs font-mono text-zinc-400 border-t border-white/5 pt-3">
                         {repo.language && (
                           <div className="flex items-center gap-1.5">
                             <span
@@ -817,7 +822,7 @@ function DashboardContent() {
                         )}
 
                         <div className="flex items-center gap-1">
-                          <Star className="w-3.5 h-3.5 text-amber-400" />
+                          <Star className="w-3.5 h-3.5 text-zinc-400" />
                           <span>{repo.stars}</span>
                         </div>
 
@@ -836,11 +841,11 @@ function DashboardContent() {
                         onClick={() => {
                           router.push(`/cartofy?github=${encodeURIComponent(repo.fullName)}`);
                         }}
-                        className="w-full py-2 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-800 hover:border-indigo-500/50 text-xs font-medium transition-all flex items-center justify-center gap-2 group/btn cursor-pointer shadow-sm"
+                        className="clay-button-white w-full py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-400 group-hover/btn:scale-110 transition-transform" />
+                        <Sparkles className="w-3.5 h-3.5 text-zinc-800" />
                         <span>Analyze Architecture</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-zinc-500 group-hover/btn:translate-x-1 group-hover/btn:text-white transition-all" />
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -851,29 +856,29 @@ function DashboardContent() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-800 bg-zinc-950 px-6 py-4 text-center text-xs text-zinc-500 font-mono">
+      {/* Tactile Obsidian Footer */}
+      <footer className="border-t border-white/5 bg-[#0a0c10] px-6 py-5 text-center text-xs text-zinc-500 font-mono">
         © 2026 CODECARTOFY • PERSONALIZED DEVELOPER DASHBOARD
       </footer>
 
-      {/* CONNECT GITHUB MODAL */}
+      {/* CONNECT GITHUB MODAL IN TACTILE CLAYMORPHISM */}
       {isConnectModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="clay-container-deep rounded-3xl w-full max-w-md p-7 space-y-5 relative border border-white/10 shadow-2xl">
             <button
               onClick={() => {
                 setIsConnectModalOpen(false);
                 setVerifiedProfile(null);
                 setGithubError(null);
               }}
-              className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-md hover:bg-zinc-900 transition-all cursor-pointer"
+              className="absolute top-5 right-5 text-zinc-400 hover:text-white p-1 rounded-lg clay-pill-tag transition-all cursor-pointer"
             >
               ✕
             </button>
 
-            <div className="space-y-1">
-              <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white mb-2">
-                <GitHubIcon className="w-5 h-5" />
+            <div className="space-y-1.5">
+              <div className="w-10 h-10 rounded-xl bg-[#1d222d] border border-white/5 flex items-center justify-center text-zinc-200 shadow-inner mb-2">
+                <GitHubIcon className="w-5 h-5 text-zinc-200" />
               </div>
               <h2 className="text-lg font-bold text-white tracking-tight">
                 Connect Public GitHub Profile
@@ -884,19 +889,19 @@ function DashboardContent() {
             </div>
 
             {githubError && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2 animate-fadeIn">
+              <div className="p-3.5 rounded-xl bg-[#1f1315] border border-red-500/30 text-red-300 text-xs flex items-center gap-2 animate-fadeIn">
                 <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
                 <span>{githubError}</span>
               </div>
             )}
 
             <form onSubmit={handleVerifyGithub} className="space-y-4">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <label className="text-[11px] font-mono font-semibold tracking-wider text-zinc-400 uppercase">
                   GITHUB USERNAME OR URL
                 </label>
                 <div className="relative">
-                  <GitHubIcon className="w-4 h-4 absolute left-3 top-2.5 text-zinc-500" />
+                  <GitHubIcon className="w-4 h-4 absolute left-3.5 top-3 text-zinc-500" />
                   <input
                     type="text"
                     required
@@ -907,12 +912,12 @@ function DashboardContent() {
                       setVerifiedProfile(null);
                       setGithubError(null);
                     }}
-                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-zinc-700 text-xs text-white rounded-lg pl-9 pr-20 py-2 focus:outline-none transition-all placeholder:text-zinc-600 font-mono"
+                    className="clay-recessed-input w-full text-xs text-white rounded-xl pl-10 pr-22 py-2.5 focus:outline-none transition-all placeholder:text-zinc-600 font-mono"
                   />
                   <button
                     type="submit"
                     disabled={isVerifyingGithub || !githubInput.trim()}
-                    className="absolute right-1.5 top-1.5 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[10px] font-bold text-zinc-200 rounded uppercase transition-all flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                    className="clay-pill-tag absolute right-1.5 top-1.5 px-3 py-1.5 text-[10px] font-bold text-zinc-200 rounded-lg uppercase transition-all flex items-center gap-1 disabled:opacity-50 cursor-pointer"
                   >
                     {isVerifyingGithub ? (
                       <Loader2 className="w-3 h-3 animate-spin text-zinc-300" />
@@ -925,12 +930,12 @@ function DashboardContent() {
 
               {/* Verified Profile Preview */}
               {verifiedProfile && (
-                <div className="p-3.5 rounded-xl bg-zinc-900/60 border border-emerald-800/60 flex items-center justify-between gap-3 animate-fadeIn">
+                <div className="clay-card-raised p-4 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn">
                   <div className="flex items-center gap-3">
                     <img
                       src={verifiedProfile.avatarUrl}
                       alt={verifiedProfile.login}
-                      className="w-10 h-10 rounded-full border border-zinc-700 object-cover"
+                      className="w-10 h-10 rounded-full border border-white/10 object-cover"
                     />
                     <div>
                       <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -951,7 +956,7 @@ function DashboardContent() {
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -959,7 +964,7 @@ function DashboardContent() {
                     setVerifiedProfile(null);
                     setGithubError(null);
                   }}
-                  className="flex-1 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs text-zinc-400 hover:text-white transition-all cursor-pointer"
+                  className="clay-pill-tag flex-1 py-2.5 rounded-xl text-xs text-zinc-400 hover:text-white transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -968,7 +973,7 @@ function DashboardContent() {
                   type="button"
                   onClick={handleConfirmConnect}
                   disabled={!verifiedProfile || isConnectingGithub}
-                  className="flex-1 py-2 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                  className="clay-button-white flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   {isConnectingGithub ? (
                     <>

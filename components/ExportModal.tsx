@@ -37,61 +37,66 @@ export function ExportModal({ isOpen, onClose, graphData, repoName }: ExportModa
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-zinc-950 w-full max-w-md rounded-lg p-6 border border-zinc-800 shadow-2xl relative space-y-5">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn font-sans">
+      <div className="clay-container-deep w-full max-w-md rounded-3xl p-6 sm:p-7 border border-white/10 shadow-2xl relative space-y-5">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-100 p-1 rounded hover:bg-zinc-900 transition-all"
+          className="absolute top-5 right-5 w-8 h-8 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
+          aria-label="Close modal"
         >
           <X className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-100">
-            <Download className="w-4 h-4" />
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-[#1c222e] border border-white/10 flex items-center justify-center text-zinc-200 shadow-inner">
+            <Download className="w-5 h-5 text-zinc-200" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-zinc-100">Export Artifacts</h3>
-            <p className="text-xs text-zinc-400">Download high-res diagrams and JSON report</p>
+            <h3 className="text-base font-bold text-white tracking-tight">Export Artifacts</h3>
+            <p className="text-xs text-zinc-400 mt-0.5">Download high-res diagrams and JSON audit report</p>
           </div>
         </div>
 
-        <div className="space-y-3 font-sans">
+        <div className="space-y-3">
           <button
             onClick={handleExportPNG}
-            className="w-full p-3.5 rounded-lg bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 flex items-center justify-between text-left group transition-all"
+            className="clay-card-raised w-full p-4 rounded-2xl flex items-center justify-between text-left group transition-all cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded bg-zinc-800 text-zinc-200 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-[#1c222e] border border-white/5 text-zinc-200 flex items-center justify-center shadow-inner">
                 <ImageIcon className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-semibold text-zinc-200">High-Res PNG Image</h4>
-                <p className="text-[11px] text-zinc-400">Snapshot 2D graph view</p>
+                <h4 className="text-xs font-bold text-white group-hover:text-white">High-Res PNG Image</h4>
+                <p className="text-[11px] text-zinc-400 mt-0.5">Snapshot 2D interactive graph view</p>
               </div>
             </div>
-            <Download className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-200 transition-all" />
+            <div className="w-7 h-7 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 group-hover:text-white transition-colors">
+              <Download className="w-3.5 h-3.5" />
+            </div>
           </button>
 
           <button
             onClick={handleExportJSON}
-            className="w-full p-3.5 rounded-lg bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 flex items-center justify-between text-left group transition-all"
+            className="clay-card-raised w-full p-4 rounded-2xl flex items-center justify-between text-left group transition-all cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded bg-zinc-800 text-zinc-200 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-[#1c222e] border border-white/5 text-zinc-200 flex items-center justify-center shadow-inner">
                 <FileText className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-semibold text-zinc-200">JSON Architecture Report</h4>
-                <p className="text-[11px] text-zinc-400">Nodes, links & cycles audit payload</p>
+                <h4 className="text-xs font-bold text-white group-hover:text-white">JSON Architecture Report</h4>
+                <p className="text-[11px] text-zinc-400 mt-0.5">Nodes, links & cycles audit payload</p>
               </div>
             </div>
-            <Download className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-200 transition-all" />
+            <div className="w-7 h-7 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 group-hover:text-white transition-colors">
+              <Download className="w-3.5 h-3.5" />
+            </div>
           </button>
         </div>
 
-        <div className="pt-1 text-center text-[11px] text-zinc-500 font-mono">
-          Generated for {repoName}
+        <div className="pt-2 border-t border-white/5 text-center text-[11px] text-zinc-500 font-mono">
+          Target payload: <span className="text-zinc-400">{repoName}</span>
         </div>
       </div>
     </div>
