@@ -642,6 +642,8 @@ function CartofyWorkspaceContent() {
           onOpenSpofModal={handleOpenSpofModal}
           isMobileOpen={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          repoId={currentRepoId || currentRepoName}
+          repoName={currentRepoName}
         />
 
         {/* Mobile Floating Trigger Button for Sidebar (< lg screens) */}

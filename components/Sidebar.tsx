@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { GraphData, GraphNode, CopilotReport, SinglePointOfFailure, AiFixRecord } from "@/lib/types";
 import { generateArchitecturalCopilotReport } from "@/lib/aiCopilot";
 import { getShortLabel } from "@/lib/graphParser";
@@ -42,6 +42,8 @@ interface SidebarProps {
   ) => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
+  repoId?: string;
+  repoName?: string;
 }
 
 export function Sidebar({
@@ -56,12 +58,86 @@ export function Sidebar({
   onOpenSpofModal,
   isMobileOpen = false,
   onCloseMobile,
+  repoId,
+  repoName,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<"inspector" | "cycles" | "copilot" | "controls" | "history">(
     selectedNode ? "inspector" : "copilot"
   );
   const [fixHistory, setFixHistory] = useState<AiFixRecord[]>([]);
   const [deletingFixId, setDeletingFixId] = useState<string | null>(null);
+
+  // Filter history to ONLY show fixes from the current repository in Cartofy
+  const currentRepoFixes = React.useMemo(() => {
+    if (!repoId && !repoName) return fixHistory;
+    const cleanCurrentName = (repoName || "").replace(/^GitHub:\s*/i, "").trim().toLowerCase();
+    const cleanCurrentId = (repoId || "").toLowerCase();
+
+    return fixHistory.filter((fix) => {
+      const fixRepoId = (fix.repoId || "").toLowerCase();
+      const fixRepoName = (fix.repoName || "").replace(/^GitHub:\s*/i, "").trim().toLowerCase();
+
+      return (
+        (cleanCurrentId && fixRepoId === cleanCurrentId) ||
+        (cleanCurrentName && fixRepoName === cleanCurrentName) ||
+        (cleanCurrentId && fixRepoName === cleanCurrentId) ||
+        (cleanCurrentName && fixRepoId === cleanCurrentName)
+      );
+    });
+  }, [fixHistory, repoId, repoName]);
+
+  // Resizable Sidebar width state (default 440px on desktop)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(440);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  // Initialize saved width from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("cartofy_sidebar_width");
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 280 && parsed <= 800) {
+          setSidebarWidth(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Resize handler using pointer events
+  const startResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const windowWidth = window.innerWidth;
+      // Distance from right edge of window
+      const newWidth = windowWidth - moveEvent.clientX;
+      const clamped = Math.min(Math.max(newWidth, 280), Math.min(windowWidth * 0.75, 760));
+      setSidebarWidth(clamped);
+    };
+
+    const handlePointerUp = () => {
+      setIsDragging(false);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      setSidebarWidth((latest) => {
+        try {
+          localStorage.setItem("cartofy_sidebar_width", latest.toString());
+        } catch {
+          // ignore
+        }
+        return latest;
+      });
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }, []);
+
+  // Breakpoint where tabs turn into icon-only navigator (below 430px)
+  const isCompactTabs = sidebarWidth < 430;
 
   // Switch to inspector when a node is explicitly selected
   const [prevSelectedNodeId, setPrevSelectedNodeId] = useState<string | null>(null);
@@ -147,116 +223,158 @@ export function Sidebar({
   const hasCycles = graphData.circularLoops.length > 0;
 
   return (
-    <aside
-      className={`
-        fixed lg:static inset-y-0 right-0 z-40 lg:z-20
-        w-80 sm:w-96 lg:w-96 xl:w-[410px] 2xl:w-[440px]
-        border-l border-white/5 bg-[#0e1117] h-full
-        flex flex-col shrink-0 font-sans select-none
-        transition-transform duration-300 ease-in-out
-        shadow-[-12px_0_36px_rgba(0,0,0,0.65)] lg:shadow-none
-        ${isMobileOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"}
-      `}
-    >
-      {/* Mobile Drawer Header */}
-      <div className="lg:hidden h-12 px-4 border-b border-white/5 flex items-center justify-between shrink-0 bg-[#0c0e12]">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-[#181d26] border border-white/5 flex items-center justify-center text-zinc-300">
-            <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
+    <>
+      {/* Invisible overlay while dragging to capture all pointer events smoothly */}
+      {isDragging && (
+        <div className="fixed inset-0 z-50 cursor-ew-resize select-none pointer-events-auto" />
+      )}
+
+      <aside
+        style={{ width: isMobileOpen ? undefined : `${sidebarWidth}px` }}
+        className={`
+          fixed lg:static inset-y-0 right-0 z-40 lg:z-20
+          border-l border-white/5 bg-[#0e1117] h-full
+          flex flex-col shrink-0 font-sans select-none relative
+          ${isDragging ? "transition-none select-none" : "transition-transform duration-300 ease-in-out"}
+          shadow-[-12px_0_36px_rgba(0,0,0,0.65)] lg:shadow-none
+          ${isMobileOpen ? "translate-x-0 w-80 sm:w-96" : "translate-x-full lg:translate-x-0 w-full max-w-full lg:max-w-none"}
+        `}
+      >
+        {/* Resizer Handle Bar (Desktop only, left edge) */}
+        <div
+          onPointerDown={startResize}
+          className={`
+            hidden lg:flex absolute left-0 top-0 bottom-0 w-2.5 -ml-1.25 z-40 cursor-ew-resize
+            items-center justify-center group select-none
+            ${isDragging ? "bg-white/10" : "hover:bg-white/5"}
+          `}
+          title="Drag to resize sidebar (compact icons mode below 430px)"
+        >
+          {/* Subtle tactile grip handle */}
+          <div
+            className={`
+              w-1 rounded-full transition-all duration-150
+              ${isDragging ? "bg-white h-16 shadow-lg shadow-white/30" : "bg-white/15 group-hover:bg-white/50 h-10 group-hover:h-14"}
+            `}
+          />
+        </div>
+
+        {/* Mobile Drawer Header */}
+        <div className="lg:hidden h-12 px-4 border-b border-white/5 flex items-center justify-between shrink-0 bg-[#0c0e12]">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-[#181d26] border border-white/5 flex items-center justify-center text-zinc-300">
+              <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
+            </div>
+            <span className="text-xs font-semibold text-white tracking-tight">Inspector & Copilot</span>
           </div>
-          <span className="text-xs font-semibold text-white tracking-tight">Inspector & Copilot</span>
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="w-7 h-7 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
+              aria-label="Close sidebar"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
-        {onCloseMobile && (
-          <button
-            onClick={onCloseMobile}
-            className="w-7 h-7 rounded-xl clay-pill-tag flex items-center justify-center text-zinc-400 hover:text-white transition-all cursor-pointer"
-            aria-label="Close sidebar"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
 
-      {/* Chunky Tactile Tabs Navigation Bar */}
-      <div className="p-2 sm:p-2.5 border-b border-white/5 bg-[#0c0e12]">
-        <div className="clay-recessed-input p-1 rounded-2xl flex items-center gap-1">
-          {/* Tab 1: Copilot */}
-          <button
-            onClick={() => setActiveTab("copilot")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer ${
-              activeTab === "copilot"
-                ? "clay-card-raised text-white border-white/10 shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
-            <span className="truncate">Copilot</span>
-          </button>
+        {/* Chunky Tactile Tabs Navigation Bar */}
+        <div className="p-2 sm:p-2.5 border-b border-white/5 bg-[#0c0e12]">
+          <div className="clay-recessed-input p-1 rounded-2xl flex items-center gap-1">
+            {/* Tab 1: Copilot */}
+            <button
+              onClick={() => setActiveTab("copilot")}
+              title="Copilot Intelligence"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer ${
+                activeTab === "copilot"
+                  ? "clay-card-raised text-white border-white/10 shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
+              {!isCompactTabs && <span className="truncate">Copilot</span>}
+            </button>
 
-          {/* Tab 2: Inspector */}
-          <button
-            onClick={() => setActiveTab("inspector")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer relative ${
-              activeTab === "inspector"
-                ? "clay-card-raised text-white border-white/10 shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
-            }`}
-          >
-            <Info className="w-3.5 h-3.5" />
-            <span className="truncate">Inspector</span>
-            {selectedNode && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute top-1.5 right-1.5" />
-            )}
-          </button>
+            {/* Tab 2: Inspector */}
+            <button
+              onClick={() => setActiveTab("inspector")}
+              title="Node Inspector"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer relative ${
+                activeTab === "inspector"
+                  ? "clay-card-raised text-white border-white/10 shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+              }`}
+            >
+              <Info className="w-3.5 h-3.5 shrink-0" />
+              {!isCompactTabs && <span className="truncate">Inspector</span>}
+              {selectedNode && (
+                <span
+                  className={`w-1.5 h-1.5 rounded-full bg-emerald-400 absolute ${
+                    isCompactTabs ? "top-1 right-2" : "top-1.5 right-1.5"
+                  }`}
+                />
+              )}
+            </button>
 
-          {/* Tab 3: Cycles */}
-          <button
-            onClick={() => setActiveTab("cycles")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer relative ${
-              activeTab === "cycles"
-                ? "bg-[#241214] text-red-300 border border-red-500/30 shadow-sm font-semibold"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-            <span className="truncate">Cycles</span>
-            {hasCycles && (
-              <span className="w-2 h-2 rounded-full bg-red-500 absolute top-1.5 right-1.5 animate-pulse" />
-            )}
-          </button>
+            {/* Tab 3: Cycles */}
+            <button
+              onClick={() => setActiveTab("cycles")}
+              title="DFS Cycles Detector"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-xl transition-all cursor-pointer relative ${
+                activeTab === "cycles"
+                  ? "bg-[#241214] text-red-300 border border-red-500/30 shadow-sm font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+              {!isCompactTabs && <span className="truncate">Cycles</span>}
+              {hasCycles && (
+                <span
+                  className={`w-2 h-2 rounded-full bg-red-500 absolute animate-pulse ${
+                    isCompactTabs ? "top-1 right-2" : "top-1.5 right-1.5"
+                  }`}
+                />
+              )}
+            </button>
 
-          {/* Tab 4: History */}
-          <button
-            onClick={() => setActiveTab("history")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-1.5 text-xs font-medium rounded-xl transition-all cursor-pointer relative ${
-              activeTab === "history"
-                ? "clay-card-raised text-white border-white/10 shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
-            }`}
-          >
-            <History className="w-3.5 h-3.5 text-zinc-300" />
-            <span className="truncate">History</span>
-            {fixHistory.length > 0 && (
-              <span className="min-w-[15px] h-[15px] px-1 rounded-full bg-purple-500/80 text-[9px] font-mono font-bold text-white flex items-center justify-center absolute -top-1 -right-1 border border-purple-400/50 shadow-sm">
-                {fixHistory.length}
-              </span>
-            )}
-          </button>
+            {/* Tab 4: History */}
+            <button
+              onClick={() => setActiveTab("history")}
+              title="AI Fix & Scan History"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-1.5 text-xs font-medium rounded-xl transition-all cursor-pointer relative ${
+                activeTab === "history"
+                  ? "clay-card-raised text-white border-white/10 shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+              }`}
+            >
+              <History className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
+              {!isCompactTabs && <span className="truncate">History</span>}
+              {currentRepoFixes.length > 0 && (
+                <span
+                  className={`min-w-[15px] h-[15px] px-1 rounded-full bg-purple-500/80 text-[9px] font-mono font-bold text-white flex items-center justify-center absolute border border-purple-400/50 shadow-sm ${
+                    isCompactTabs ? "-top-1 right-1" : "-top-1 -right-1"
+                  }`}
+                >
+                  {currentRepoFixes.length}
+                </span>
+              )}
+            </button>
 
-          {/* Tab 5: Metrics */}
-          <button
-            onClick={() => setActiveTab("controls")}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-1.5 text-xs font-medium rounded-xl transition-all cursor-pointer ${
-              activeTab === "controls"
-                ? "clay-card-raised text-white border-white/10 shadow-sm"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span className="truncate">Metrics</span>
-          </button>
+            {/* Tab 5: Metrics */}
+            <button
+              onClick={() => setActiveTab("controls")}
+              title="AST Metrics & Categories"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-1.5 text-xs font-medium rounded-xl transition-all cursor-pointer ${
+                activeTab === "controls"
+                  ? "clay-card-raised text-white border-white/10 shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5 shrink-0" />
+              {!isCompactTabs && <span className="truncate">Metrics</span>}
+            </button>
+          </div>
         </div>
-      </div>
 
       {/* Tab Panels Content */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
@@ -773,33 +891,33 @@ export function Sidebar({
                   <History className="w-4 h-4 text-purple-400" />
                 </div>
                 <div className="truncate">
-                  <h4 className="text-xs font-bold text-purple-200">AI Fix History</h4>
-                  <p className="text-[11px] text-zinc-400 font-mono">
-                    {fixHistory.length} scan & fix record{fixHistory.length === 1 ? "" : "s"}
+                  <h4 className="text-xs font-bold text-purple-200">Repository Fix History</h4>
+                  <p className="text-[11px] text-zinc-400 font-mono truncate">
+                    {currentRepoFixes.length} record{currentRepoFixes.length === 1 ? "" : "s"} for {repoName || "this repository"}
                   </p>
                 </div>
               </div>
 
               <span className="text-[10px] font-mono px-2.5 py-1 rounded-xl bg-purple-500/10 text-purple-300 border border-purple-500/20 font-semibold shrink-0">
-                User Isolated
+                Repo Scoped
               </span>
             </div>
 
-            {fixHistory.length === 0 ? (
+            {currentRepoFixes.length === 0 ? (
               <div className="clay-card-raised rounded-2xl text-center py-10 px-6 space-y-3">
                 <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-400 shadow-inner">
                   <Sparkles className="w-5 h-5 text-purple-400" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-xs font-semibold text-white">No AI Fixes Recorded Yet</h4>
+                  <h4 className="text-xs font-semibold text-white">No Fixes for this Repository</h4>
                   <p className="text-[11px] text-zinc-400 leading-relaxed max-w-[240px] mx-auto">
-                    Run an AI fix on any Single Point of Failure, Circular Cycle, or High Priority Advisory. Your refactoring plans and raised GitHub issues will automatically persist here.
+                    No AI fixes or GitHub issues have been created for {repoName || "this repository"} yet. All global fixes across all projects are saved in your Dashboard.
                   </p>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                {fixHistory.map((fix) => {
+                {currentRepoFixes.map((fix) => {
                   const hasIssue = Boolean(fix.githubIssueUrl && fix.githubIssueNumber);
                   const isDeleting = deletingFixId === fix.id;
                   const dateStr = fix.timestamp
@@ -904,5 +1022,6 @@ export function Sidebar({
         )}
       </div>
     </aside>
+  </>
   );
 }
