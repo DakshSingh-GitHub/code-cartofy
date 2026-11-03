@@ -14,6 +14,9 @@ import {
   fetchUserPublicRepositories,
   GitHubUserProfile,
   GitHubRepoSummary,
+  getSavedGitHubToken,
+  saveGitHubToken,
+  getClientPitchFallbackRepos,
 } from "@/lib/githubFetcher";
 import {
   getRecentRepos,
@@ -57,6 +60,7 @@ import {
   SlidersHorizontal,
   GitPullRequest,
   ClipboardList,
+  Key,
 } from "lucide-react";
 
 function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -129,6 +133,52 @@ function DashboardContent() {
   const [dbNotice, setDbNotice] = useState<{ message: string; type: "error" | "warning" | "success" } | null>(null);
   const [isConnectingGithub, setIsConnectingGithub] = useState(false);
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+
+  // GitHub Personal Access Token State (for 5,000 req/hr & Pitch Resilience)
+  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
+  const [tokenInput, setTokenInput] = useState("");
+  const [hasCustomToken, setHasCustomToken] = useState(false);
+
+  useEffect(() => {
+    const saved = getSavedGitHubToken();
+    if (saved) {
+      setHasCustomToken(true);
+      setTokenInput(saved);
+    }
+  }, []);
+
+  const handleSaveToken = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveGitHubToken(tokenInput.trim());
+    setHasCustomToken(Boolean(tokenInput.trim()));
+    setIsTokenModalOpen(false);
+    if (session?.githubUsername) {
+      fetchRepositories(session.githubUsername);
+    }
+  };
+
+  const handleLoadPitchRepos = () => {
+    const ghUser = session?.githubUsername || "developer";
+    const demoRepos = getClientPitchFallbackRepos(ghUser);
+    setRepos(demoRepos);
+    setReposError(null);
+  };
+
+  const handleInstantBypass = () => {
+    const clean = (githubInput.trim() || session?.githubUsername || "developer")
+      .replace(/^https?:\/\/github\.com\//, "")
+      .replace(/\/$/, "");
+    setVerifiedProfile({
+      login: clean,
+      name: clean,
+      avatarUrl: `https://github.com/${clean}.png`,
+      bio: "GitHub Developer (Hackathon Pitch Mode)",
+      publicRepos: 10,
+      htmlUrl: `https://github.com/${clean}`,
+      isFallback: true,
+    });
+    setGithubError(null);
+  };
 
   // Repositories List State
   const [repos, setRepos] = useState<GitHubRepoSummary[]>([]);
@@ -538,6 +588,15 @@ function DashboardContent() {
 
             {/* Actions: Connect GitHub or Refresh */}
             <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+              <button
+                onClick={() => setIsTokenModalOpen(true)}
+                className="clay-pill-tag px-3 py-2 rounded-xl text-xs text-zinc-300 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Configure GitHub Personal Access Token (boosts limit from 60 to 5,000 req/hr)"
+              >
+                <Key className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline font-mono text-[11px]">{hasCustomToken ? "Token Configured" : "GitHub Token"}</span>
+              </button>
+
               {session?.githubUsername ? (
                 <>
                   <button
@@ -1060,19 +1119,40 @@ function DashboardContent() {
               </div>
             )}
 
-            {/* Error Message */}
+            {/* Error Message with Hackathon Pitch Workaround */}
             {reposError && (
-              <div className="p-4 rounded-2xl bg-[#1f1315] border border-red-500/30 text-red-300 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                  <span>{reposError}</span>
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#1f1315] border border-red-500/30 text-red-200 text-xs space-y-3">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-start md:items-center gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5 md:mt-0" />
+                    <div>
+                      <p className="font-semibold text-white">GitHub API Rate Limit Reached</p>
+                      <p className="text-zinc-400 text-[11px] mt-0.5">
+                        {reposError}. Unauthenticated requests are capped at 60/hr per IP (often shared on hackathon WiFi).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      onClick={handleLoadPitchRepos}
+                      className="clay-button-white px-3.5 py-1.5 rounded-xl text-black text-xs font-semibold cursor-pointer shadow-sm hover:scale-[1.02] transition-transform"
+                    >
+                      ⚡ Load Pitch Demo Repos
+                    </button>
+                    <button
+                      onClick={() => setIsTokenModalOpen(true)}
+                      className="clay-pill-tag px-3 py-1.5 rounded-xl text-zinc-200 text-xs font-mono cursor-pointer hover:text-white"
+                    >
+                      🔑 Add Token (5,000 req/hr)
+                    </button>
+                    <button
+                      onClick={() => fetchRepositories(session!.githubUsername!)}
+                      className="clay-pill-tag px-3 py-1.5 rounded-xl text-white text-xs font-mono cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => fetchRepositories(session.githubUsername!)}
-                  className="clay-pill-tag px-3 py-1 rounded-lg text-white text-xs font-mono cursor-pointer"
-                >
-                  Retry
-                </button>
               </div>
             )}
 
@@ -1208,9 +1288,30 @@ function DashboardContent() {
             </div>
 
             {githubError && (
-              <div className="p-3.5 rounded-xl bg-[#1f1315] border border-red-500/30 text-red-300 text-xs flex items-center gap-2 animate-fadeIn">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
-                <span>{githubError}</span>
+              <div className="p-3.5 rounded-xl bg-[#1f1315] border border-red-500/30 text-red-300 text-xs space-y-2 animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{githubError}</span>
+                </div>
+                <div className="pt-1 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleInstantBypass}
+                    className="clay-button-white px-2.5 py-1 rounded-lg text-[11px] font-bold text-black cursor-pointer shadow-sm hover:scale-[1.02] transition-transform"
+                  >
+                    ⚡ Instant Connect (Bypass Limit for Pitch)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsConnectModalOpen(false);
+                      setIsTokenModalOpen(true);
+                    }}
+                    className="clay-pill-tag px-2.5 py-1 rounded-lg text-[10px] font-mono text-zinc-300 hover:text-white cursor-pointer"
+                  >
+                    🔑 Add GitHub Token
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1305,6 +1406,98 @@ function DashboardContent() {
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIGURE GITHUB PERSONAL ACCESS TOKEN (PAT) MODAL */}
+      {isTokenModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="clay-container-deep rounded-3xl w-full max-w-md p-7 space-y-5 relative border border-white/10 shadow-2xl">
+            <button
+              onClick={() => setIsTokenModalOpen(false)}
+              className="absolute top-5 right-5 text-zinc-400 hover:text-white p-1 rounded-lg clay-pill-tag transition-all cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="space-y-1.5">
+              <div className="w-10 h-10 rounded-xl bg-[#1d222d] border border-white/5 flex items-center justify-center text-amber-400 shadow-inner mb-2">
+                <Key className="w-5 h-5" />
+              </div>
+              <h2 className="text-lg font-bold text-white tracking-tight">
+                GitHub API Rate Limit & Token
+              </h2>
+              <p className="text-xs text-zinc-400">
+                Unauthenticated requests share a 60/hr IP limit. Adding a Personal Access Token (PAT) raises your limit to <strong className="text-emerald-400">5,000 requests/hr</strong>.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveToken} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[11px] font-mono font-semibold tracking-wider text-zinc-400 uppercase">
+                  GITHUB PERSONAL ACCESS TOKEN (PAT)
+                </label>
+                <div className="relative">
+                  <Key className="w-4 h-4 absolute left-3.5 top-3 text-zinc-500" />
+                  <input
+                    type="password"
+                    placeholder="ghp_... or github_pat_..."
+                    value={tokenInput}
+                    onChange={(e) => setTokenInput(e.target.value)}
+                    className="clay-recessed-input w-full text-xs text-white rounded-xl pl-10 pr-4 py-2.5 focus:outline-none transition-all placeholder:text-zinc-600 font-mono"
+                  />
+                </div>
+                <p className="text-[10px] text-zinc-500">
+                  Tip: A classic token or fine-grained token with zero scopes is enough for public repository data.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#131720] border border-white/5 text-[11px] text-zinc-400 space-y-1">
+                <div className="flex items-center gap-1.5 text-zinc-300 font-semibold">
+                  <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Server Token Protection Active</span>
+                </div>
+                <p className="text-[10px] text-zinc-500">
+                  The backend automatically uses the server environment token (<code className="text-zinc-300">GITHUB_ACCESS_TOKEN</code>). You only need a custom token if sharing or testing across different developer credentials.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 pt-2">
+                {hasCustomToken && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      saveGitHubToken("");
+                      setTokenInput("");
+                      setHasCustomToken(false);
+                      setIsTokenModalOpen(false);
+                      if (session?.githubUsername) {
+                        fetchRepositories(session.githubUsername);
+                      }
+                    }}
+                    className="clay-pill-tag py-2.5 px-3 rounded-xl text-xs text-red-400 hover:text-red-300 transition-all cursor-pointer"
+                  >
+                    Clear Token
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsTokenModalOpen(false)}
+                  className="clay-pill-tag flex-1 py-2.5 rounded-xl text-xs text-zinc-400 hover:text-white transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="clay-button-white flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  Save & Apply
                 </button>
               </div>
             </form>
