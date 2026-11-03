@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+let isServerSupabaseOffline = false;
+let serverOfflineUntil = 0;
+const SERVER_OFFLINE_COOLDOWN_MS = 60 * 1000; // 60s cooldown
+
+function withTimeout<T>(promise: PromiseLike<T>, ms: number = 1500): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Supabase request timed out")), ms)
+    ),
+  ]);
+}
+
 function getSupabaseServerClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   // Use service role key if available, else anon key
@@ -26,9 +39,13 @@ export async function GET(req: NextRequest) {
   const username = searchParams.get("username");
   const email = searchParams.get("email");
 
+  if (isServerSupabaseOffline && Date.now() < serverOfflineUntil) {
+    return NextResponse.json({ success: false, offline: true, error: "Database offline" }, { status: 200 });
+  }
+
   const supabase = getSupabaseServerClient();
   if (!supabase) {
-    return NextResponse.json({ success: false, error: "Database not configured" }, { status: 503 });
+    return NextResponse.json({ success: false, offline: true, error: "Database not configured" }, { status: 200 });
   }
 
   try {
@@ -44,19 +61,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing user identifier" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
-      .from("user_github_connections")
-      .select("*")
-      .or(filters.join(","))
-      .maybeSingle();
+    const { data, error } = await withTimeout(
+      supabase
+        .from("user_github_connections")
+        .select("*")
+        .or(filters.join(","))
+        .maybeSingle(),
+      1500
+    );
 
     if (error) {
+      if (error.message?.includes("fetch failed") || error.message?.includes("Load failed")) {
+        isServerSupabaseOffline = true;
+        serverOfflineUntil = Date.now() + SERVER_OFFLINE_COOLDOWN_MS;
+        return NextResponse.json({ success: false, offline: true, error: error.message }, { status: 200 });
+      }
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, data });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Internal Server Error";
+    if (msg.includes("timed out") || msg.includes("fetch failed") || msg.includes("Load failed")) {
+      isServerSupabaseOffline = true;
+      serverOfflineUntil = Date.now() + SERVER_OFFLINE_COOLDOWN_MS;
+      return NextResponse.json({ success: false, offline: true, error: msg }, { status: 200 });
+    }
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
@@ -81,27 +111,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (isServerSupabaseOffline && Date.now() < serverOfflineUntil) {
+      return NextResponse.json({ success: false, offline: true, error: "Database offline" }, { status: 200 });
+    }
+
     const cleanGh = String(githubUsername).trim().replace(/^@/, "");
     const supabase = getSupabaseServerClient();
 
     if (!supabase) {
       return NextResponse.json(
-        { success: false, error: "Database not configured" },
-        { status: 503 }
+        { success: false, offline: true, error: "Database not configured" },
+        { status: 200 }
       );
     }
 
-    // 1. Try calling the SECURITY DEFINER RPC first (immune to RLS policies)
+    // 1. Try calling the SECURITY DEFINER RPC first (immune to RLS policies) with timeout
     try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc("save_github_connection", {
-        p_user_id: String(userId),
-        p_username: username ? String(username) : String(userId),
-        p_user_email: email ? String(email) : null,
-        p_github_username: cleanGh,
-        p_avatar_url: avatarUrl || null,
-        p_profile_url: profileUrl || `https://github.com/${cleanGh}`,
-        p_public_repos_count: Number(publicReposCount) || 0,
-      });
+      const { data: rpcData, error: rpcError } = await withTimeout(
+        supabase.rpc("save_github_connection", {
+          p_user_id: String(userId),
+          p_username: username ? String(username) : String(userId),
+          p_user_email: email ? String(email) : null,
+          p_github_username: cleanGh,
+          p_avatar_url: avatarUrl || null,
+          p_profile_url: profileUrl || `https://github.com/${cleanGh}`,
+          p_public_repos_count: Number(publicReposCount) || 0,
+        }),
+        1500
+      );
 
       if (!rpcError && rpcData) {
         return NextResponse.json({ success: true, data: rpcData });
@@ -122,14 +159,20 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
-      .from("user_github_connections")
-      .upsert(payload, { onConflict: "user_id" })
-      .select()
-      .maybeSingle();
+    const { data, error } = await withTimeout(
+      supabase
+        .from("user_github_connections")
+        .upsert(payload, { onConflict: "user_id" })
+        .select()
+        .maybeSingle(),
+      1500
+    );
 
     if (error) {
-      console.error("API /api/user/github upsert error:", error);
+      if (error.message?.includes("fetch failed") || error.message?.includes("Load failed")) {
+        isServerSupabaseOffline = true;
+        serverOfflineUntil = Date.now() + SERVER_OFFLINE_COOLDOWN_MS;
+      }
       return NextResponse.json(
         {
           success: false,
@@ -144,7 +187,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Internal Server Error";
-    console.error("API /api/user/github fatal error:", err);
+    if (msg.includes("timed out") || msg.includes("fetch failed") || msg.includes("Load failed")) {
+      isServerSupabaseOffline = true;
+      serverOfflineUntil = Date.now() + SERVER_OFFLINE_COOLDOWN_MS;
+      return NextResponse.json({ success: false, offline: true, error: msg }, { status: 200 });
+    }
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }

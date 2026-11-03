@@ -17,6 +17,30 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
+let isSupabaseOffline = false;
+let lastOfflineTimestamp = 0;
+const OFFLINE_COOLDOWN_MS = 60 * 1000; // 60s cooldown before retrying unreachable remote
+
+export function markSupabaseOffline(reason?: string): void {
+  if (!isSupabaseOffline) {
+    console.debug(`[Supabase] Remote backend unreachable (${reason || "Load failed"}). Serving via local storage.`);
+  }
+  isSupabaseOffline = true;
+  lastOfflineTimestamp = Date.now();
+}
+
+export function shouldSkipSupabase(): boolean {
+  if (!isSupabaseConfigured()) return true;
+  if (isSupabaseOffline) {
+    if (Date.now() - lastOfflineTimestamp > OFFLINE_COOLDOWN_MS) {
+      isSupabaseOffline = false; // Reset to retry once
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
 export interface RegisterParams {
   fullName: string;
   username: string;
@@ -299,7 +323,7 @@ export async function saveUserRepoToSupabase(
     fileCount?: number;
   }
 ): Promise<{ success: boolean; error?: string }> {
-  if (!isSupabaseConfigured()) return { success: true };
+  if (shouldSkipSupabase()) return { success: true };
 
   const userId = user.username || user.id || user.email || "guest";
   const recordId = `${userId}:${repo.id}`;
@@ -325,13 +349,20 @@ export async function saveUserRepoToSupabase(
       .upsert(payload, { onConflict: "id" });
 
     if (error) {
-      console.warn("Supabase repo upsert warning:", error.message);
+      if (error.message?.includes("Load failed") || error.message?.includes("Failed to fetch")) {
+        markSupabaseOffline(error.message);
+      } else {
+        console.debug("Supabase repo upsert notice:", error.message);
+      }
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to sync repo to Supabase";
+    if (message.includes("Load failed") || message.includes("Failed to fetch")) {
+      markSupabaseOffline(message);
+    }
     return { success: false, error: message };
   }
 }
@@ -344,7 +375,7 @@ export async function fetchUserReposFromSupabase(user: {
   username?: string;
   email?: string;
 }): Promise<SupabaseUserRepo[]> {
-  if (!isSupabaseConfigured()) return [];
+  if (shouldSkipSupabase()) return [];
 
   const userId = user.username || user.id || user.email || "guest";
 
@@ -356,13 +387,20 @@ export async function fetchUserReposFromSupabase(user: {
       .order("timestamp", { ascending: false });
 
     if (error) {
-      console.warn("Supabase repo fetch warning:", error.message);
+      if (error.message?.includes("Load failed") || error.message?.includes("Failed to fetch")) {
+        markSupabaseOffline(error.message);
+      } else {
+        console.debug("Supabase repo fetch notice:", error.message);
+      }
       return [];
     }
 
     return (data || []) as SupabaseUserRepo[];
   } catch (err: unknown) {
-    console.error("Failed to fetch user repos from Supabase:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Load failed") || msg.includes("Failed to fetch")) {
+      markSupabaseOffline(msg);
+    }
     return [];
   }
 }
@@ -541,54 +579,7 @@ export async function fetchUserGithubConnection(user: {
   const username = user.username || "";
   const email = user.email || "";
 
-  // 1. Try server API route first
-  if (typeof window !== "undefined") {
-    try {
-      const q = new URLSearchParams({
-        userId: primaryId,
-        ...(username ? { username } : {}),
-        ...(email ? { email } : {}),
-      });
-      const res = await fetch(`/api/user/github?${q.toString()}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          return json.data as UserGithubConnectionRecord;
-        }
-      }
-    } catch {
-      // fallback
-    }
-  }
-
-  // 2. Direct client query
-  if (isSupabaseConfigured()) {
-    try {
-      const filterParts: string[] = [];
-      if (primaryId) filterParts.push(`user_id.eq.${primaryId}`);
-      if (username) {
-        filterParts.push(`user_id.eq.${username}`);
-        filterParts.push(`username.eq.${username}`);
-      }
-      if (email) filterParts.push(`user_email.eq.${email}`);
-
-      if (filterParts.length > 0) {
-        const { data, error } = await supabase
-          .from("user_github_connections")
-          .select("*")
-          .or(filterParts.join(","))
-          .maybeSingle();
-
-        if (!error && data) {
-          return data as UserGithubConnectionRecord;
-        }
-      }
-    } catch (err) {
-      console.warn("Direct Supabase fetch error:", err);
-    }
-  }
-
-  // 3. Fallback to local storage
+  // 1. Check local storage cache FIRST (Instant 0ms response, zero network latency)
   if (typeof window !== "undefined") {
     try {
       const storedMap = JSON.parse(localStorage.getItem("cartofy_github_connections") || "{}");
@@ -596,6 +587,47 @@ export async function fetchUserGithubConnection(user: {
       if (username && storedMap[username]) return storedMap[username] as UserGithubConnectionRecord;
     } catch {
       // ignore
+    }
+  }
+
+  if (shouldSkipSupabase()) {
+    return null;
+  }
+
+  // 2. Try server API route with fast abort timeout
+  if (typeof window !== "undefined") {
+    try {
+      const q = new URLSearchParams({
+        userId: primaryId,
+        ...(username ? { username } : {}),
+        ...(email ? { email } : {}),
+      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+      const res = await fetch(`/api/user/github?${q.toString()}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          // Cache in local storage for future instant loads
+          try {
+            const storedMap = JSON.parse(localStorage.getItem("cartofy_github_connections") || "{}");
+            storedMap[primaryId] = json.data;
+            if (username) storedMap[username] = json.data;
+            localStorage.setItem("cartofy_github_connections", JSON.stringify(storedMap));
+          } catch {}
+          return json.data as UserGithubConnectionRecord;
+        }
+        if (json.offline) {
+          markSupabaseOffline("Database server offline");
+        }
+      }
+    } catch {
+      markSupabaseOffline("API /api/user/github timeout");
     }
   }
 
@@ -703,13 +735,20 @@ export async function saveAiFixToSupabase(
       .upsert(payload, { onConflict: "id" });
 
     if (error) {
-      console.warn("Supabase AI fix upsert error:", error.message);
+      if (error.message?.includes("Load failed") || error.message?.includes("Failed to fetch")) {
+        markSupabaseOffline(error.message);
+      } else {
+        console.debug("Supabase AI fix upsert notice:", error.message);
+      }
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to save AI fix to Supabase";
+    if (message.includes("Load failed") || message.includes("Failed to fetch")) {
+      markSupabaseOffline(message);
+    }
     return { success: false, error: message };
   }
 }
@@ -721,7 +760,7 @@ export async function fetchUserAiFixesFromSupabase(
   user: { id?: string; username?: string; email?: string },
   repoId?: string
 ): Promise<AiFixRecord[]> {
-  if (!isSupabaseConfigured()) return [];
+  if (shouldSkipSupabase()) return [];
 
   const userId = user.username || user.id || user.email || "guest";
 
@@ -739,7 +778,11 @@ export async function fetchUserAiFixesFromSupabase(
     const { data, error } = await query;
 
     if (error) {
-      console.warn("Supabase AI fixes query warning:", error.message);
+      if (error.message?.includes("Load failed") || error.message?.includes("Failed to fetch")) {
+        markSupabaseOffline(error.message);
+      } else {
+        console.debug("Supabase AI fixes query notice:", error.message);
+      }
       return [];
     }
 
@@ -784,7 +827,10 @@ export async function fetchUserAiFixesFromSupabase(
       };
     });
   } catch (err: unknown) {
-    console.error("Failed to fetch user AI fixes from Supabase:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("Load failed") || msg.includes("Failed to fetch")) {
+      markSupabaseOffline(msg);
+    }
     return [];
   }
 }

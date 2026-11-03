@@ -58,8 +58,13 @@ export function parseRepositoryToGraph(files: FileInput[]): GraphData {
   });
 
   // Step 2: AST Extraction for Imports & Re-exports
+  const jsExtensions = /\.(js|jsx|ts|tsx|mjs|cjs)$/i;
+
   normalizedFiles.forEach((file) => {
     if (!file.code || file.code.trim() === "") return;
+
+    // Only parse JavaScript/TypeScript files with Babel. JSON, CSS, and Markdown don't have module imports.
+    if (!jsExtensions.test(file.path)) return;
 
     try {
       const ast = babelParser.parse(file.code, {
