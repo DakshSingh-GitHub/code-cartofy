@@ -8,6 +8,7 @@ export interface UserSession {
   avatarUrl?: string;
   isVlyxir?: boolean;
   githubUsername?: string;
+  bio?: string;
 }
 
 const COOKIE_NAME = "cartofy_session";

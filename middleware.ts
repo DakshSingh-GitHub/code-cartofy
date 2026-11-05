@@ -4,8 +4,8 @@ import type { NextRequest } from "next/server";
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Protect /cartofy and /dashboard routes and their subroutes
-  if (pathname.startsWith("/cartofy") || pathname.startsWith("/dashboard")) {
+  // Protect /cartofy, /dashboard, and /my-acc routes and their subroutes
+  if (pathname.startsWith("/cartofy") || pathname.startsWith("/dashboard") || pathname.startsWith("/my-acc")) {
     const sessionCookie = request.cookies.get("cartofy_session");
 
     if (!sessionCookie || !sessionCookie.value) {
@@ -20,5 +20,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/cartofy/:path*", "/dashboard/:path*"],
+  matcher: ["/cartofy/:path*", "/dashboard/:path*", "/my-acc/:path*"],
 };

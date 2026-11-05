@@ -437,7 +437,11 @@ export function Navbar({
 
           {session ? (
             <div className="flex items-center gap-2">
-              <div className="clay-pill-tag px-2.5 sm:px-3 py-1 rounded-full flex items-center gap-2 text-xs text-zinc-200 font-mono">
+              <Link
+                href="/my-acc"
+                className="clay-pill-tag hover:bg-[#161a22] px-2.5 sm:px-3 py-1 rounded-full flex items-center gap-2 text-xs text-zinc-200 font-mono transition-colors cursor-pointer group"
+                title="My Account"
+              >
                 <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-white/10 bg-[#1e2533] flex items-center justify-center text-[10px] font-bold text-sky-200 shadow-inner">
                   <img
                     src={session.avatarUrl || "/vlyxir/favicon.png"}
@@ -448,8 +452,8 @@ export function Navbar({
                     }}
                   />
                 </div>
-                <span className="truncate max-w-[110px] font-medium text-zinc-100 hidden md:inline">{session.name}</span>
-              </div>
+                <span className="truncate max-w-[110px] font-medium text-zinc-100 group-hover:text-white hidden md:inline">{session.name}</span>
+              </Link>
 
               <button
                 onClick={handleLogout}

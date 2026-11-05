@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getClientSession, logoutUser, UserSession } from "@/lib/auth";
@@ -20,10 +20,11 @@ import {
   Share2,
   FileCode,
   ShieldCheck,
-  FolderGit2,
   Activity,
   Compass,
   LogIn,
+  User,
+  LayoutDashboard,
 } from "lucide-react";
 
 function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -320,12 +321,34 @@ export default function LandingPage() {
   const [session, setSession] = useState<UserSession | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const updateSession = () => setSession(getClientSession());
     updateSession();
     window.addEventListener("cartofy_session_change", updateSession);
     return () => window.removeEventListener("cartofy_session_change", updateSession);
+  }, []);
+
+  // Close account dropdown on click outside or escape key
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (accountDropdownRef.current && !accountDropdownRef.current.contains(event.target as Node)) {
+        setIsAccountDropdownOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsAccountDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   const handleQuickGitHubSubmit = (e: React.FormEvent) => {
@@ -363,21 +386,16 @@ export default function LandingPage() {
             </span>
           </Link>
 
-          {/* Right: Dashboard button, Profile pill, Sign Out */}
+          {/* Right: Merged Account Dropdown (when logged in) or Login / Dashboard (when logged out) */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              href="/dashboard"
-              className="clay-button-white px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-            >
-              <span>Dashboard</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-
-            {/* User Profile or Login Trigger */}
             {session ? (
-              <div className="flex items-center gap-2">
-                <div
-                  className="clay-pill-tag px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-2 text-xs text-zinc-200 font-medium"
+              <div className="relative" ref={accountDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsAccountDropdownOpen((prev) => !prev)}
+                  className="clay-pill-tag hover:bg-[#161a22] px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-2 text-xs text-zinc-200 font-medium transition-all cursor-pointer select-none group focus:outline-none"
+                  aria-expanded={isAccountDropdownOpen}
+                  aria-haspopup="true"
                   title={session.name}
                 >
                   <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-white/10 bg-[#1e2533] flex items-center justify-center text-[10px] font-bold text-sky-200 shadow-inner">
@@ -394,28 +412,72 @@ export default function LandingPage() {
                       <span>{session.name ? session.name[0].toUpperCase() : "U"}</span>
                     )}
                   </div>
-                  <span className="font-semibold text-zinc-200 tracking-tight hidden xs:inline sm:inline">
+                  <span className="font-semibold text-zinc-200 tracking-tight max-w-[130px] truncate group-hover:text-white transition-colors">
                     {session.name}
                   </span>
-                </div>
-
-                <button
-                  onClick={handleLogout}
-                  className="w-8 h-8 rounded-xl bg-[#141720] border border-white/5 flex items-center justify-center text-zinc-400 hover:text-red-400 hover:border-white/10 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_2px_4px_rgba(0,0,0,0.4)] cursor-pointer"
-                  title="Sign Out"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 group-hover:text-zinc-200 ${
+                      isAccountDropdownOpen ? "rotate-180 text-white" : ""
+                    }`}
+                  />
                 </button>
+
+                {/* Account Dropdown Menu */}
+                {isAccountDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 sm:w-52 py-1.5 rounded-2xl bg-[#12161f] border border-white/10 shadow-[0_12px_32px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.08)] z-50 backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
+                    <Link
+                      href="/my-acc"
+                      onClick={() => setIsAccountDropdownOpen(false)}
+                      className="w-full px-3.5 py-2 text-xs font-medium text-zinc-200 hover:text-white hover:bg-white/5 flex items-center gap-2.5 transition-colors cursor-pointer rounded-xl"
+                    >
+                      <User className="w-4 h-4 text-zinc-400" />
+                      <span>My account</span>
+                    </Link>
+
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setIsAccountDropdownOpen(false)}
+                      className="w-full px-3.5 py-2 text-xs font-medium text-zinc-200 hover:text-white hover:bg-white/5 flex items-center gap-2.5 transition-colors cursor-pointer rounded-xl"
+                    >
+                      <LayoutDashboard className="w-4 h-4 text-zinc-400" />
+                      <span>dashboard</span>
+                    </Link>
+
+                    <div className="my-1.5 border-t border-white/10" />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAccountDropdownOpen(false);
+                        handleLogout();
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs font-medium text-zinc-300 hover:text-red-400 hover:bg-red-500/10 flex items-center gap-2.5 transition-colors cursor-pointer rounded-xl group"
+                    >
+                      <LogOut className="w-4 h-4 text-zinc-400 group-hover:text-red-400 transition-colors" />
+                      <span>Signout</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
-              <button
-                onClick={() => setIsAuthModalOpen(true)}
-                className="clay-pill-tag hover:bg-[#1a202c] text-zinc-200 hover:text-white px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-                title="Login to CodeCartofy"
-              >
-                <LogIn className="w-3.5 h-3.5 text-zinc-400" />
-                <span>Login</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/dashboard"
+                  className="clay-button-white px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>Dashboard</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+
+                <button
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="clay-pill-tag hover:bg-[#1a202c] text-zinc-200 hover:text-white px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Login to CodeCartofy"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Login</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

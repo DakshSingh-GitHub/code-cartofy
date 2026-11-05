@@ -847,6 +847,77 @@ export async function deleteUserAiFixFromSupabase(fixId: string): Promise<void> 
   }
 }
 
+/**
+ * Update user profile metadata in Supabase profiles table and/or localStorage
+ */
+export async function updateUserProfileInBackend(
+  userId: string,
+  profile: {
+    fullName?: string;
+    username?: string;
+    email?: string;
+    country?: string;
+    avatarUrl?: string;
+    bio?: string;
+    githubUsername?: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== "undefined") {
+    try {
+      const localUsers = JSON.parse(localStorage.getItem("cartofy_local_users") || "[]");
+      const idx = localUsers.findIndex(
+        (u: { id?: string; email?: string; username?: string }) =>
+          u.id === userId || (profile.email && u.email === profile.email) || (profile.username && u.username === profile.username)
+      );
+      if (idx !== -1) {
+        localUsers[idx] = {
+          ...localUsers[idx],
+          fullName: profile.fullName || localUsers[idx].fullName,
+          username: profile.username || localUsers[idx].username,
+          country: profile.country || localUsers[idx].country,
+          avatarUrl: profile.avatarUrl || localUsers[idx].avatarUrl,
+          bio: profile.bio !== undefined ? profile.bio : localUsers[idx].bio,
+          githubUsername: profile.githubUsername || localUsers[idx].githubUsername,
+        };
+        localStorage.setItem("cartofy_local_users", JSON.stringify(localUsers));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!isSupabaseConfigured() || shouldSkipSupabase()) {
+    return { success: true };
+  }
+
+  try {
+    const updatePayload: Record<string, string | undefined> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (profile.fullName) updatePayload.full_name = profile.fullName;
+    if (profile.username) updatePayload.username = profile.username;
+    if (profile.country) updatePayload.country = profile.country;
+    if (profile.avatarUrl) updatePayload.avatar_url = profile.avatarUrl;
+    if (profile.bio !== undefined) updatePayload.bio = profile.bio;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(updatePayload)
+      .eq("id", userId);
+
+    if (error) {
+      console.warn("Supabase profile update warning:", error.message);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
+}
+
+
 
 
 
